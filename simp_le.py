@@ -304,6 +304,23 @@ class IOPlugin(object):
 
     def __init__(self, path, **dummy_kwargs):
         self.path = path
+        self.arguments_dest = []
+        self.script_name = None
+        if 'arguments' in dummy_kwargs:
+            self.arguments = dummy_kwargs['arguments']
+        else:
+            self.arguments = None
+
+    def add_arguments(self, manager):
+        if self.arguments:
+            for argument in self.arguments:
+                storeAction = manager.add_argument(*argument[0], **argument[1])
+                self.arguments_dest.append(storeAction.dest)
+
+    def set_arguments(self, args):
+        vargs = vars(args)
+        for dest in self.arguments_dest:
+            setattr(self, dest, vargs[dest])
 
     @abc.abstractmethod
     def persisted(self):
@@ -864,6 +881,9 @@ def create_parser():
         'is necessary to cover all components: key, certificate, chain. '
         'Allowed values: %s.' % ', '.join(sorted(IOPlugin.registered)),
     )
+    for plugin_name in IOPlugin.registered:
+        IOPlugin.registered[plugin_name].add_arguments(io_group)
+
     io_group.add_argument(
         '--cert_key_size', type=int, default=4096, metavar='BITS',
         help='Certificate key size. Fresh key is created for each renewal.',
@@ -1121,6 +1141,10 @@ def check_plugins_persist_all(ioplugins):
         raise Error('Selected IO plugins do not cover the following '
                     'components: %s.' % ', '.join(not_persisted))
 
+def set_plugins_arguments(ioplugins, args):
+    """Set arguments for plugin"""
+    for plugin_name in ioplugins:
+        IOPlugin.registered[plugin_name].set_arguments(args)
 
 def load_existing_data(ioplugins):
     """Load existing data from disk.
@@ -1375,6 +1399,7 @@ def main_with_exceptions(cli_args):
 
     if args.vhosts is None:
         raise Error('You must set at least one -d/--vhost')
+    set_plugins_arguments(args.ioplugins, args)
     check_plugins_persist_all(args.ioplugins)
 
     existing_data = load_existing_data(args.ioplugins)
