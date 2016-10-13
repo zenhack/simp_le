@@ -305,7 +305,6 @@ class IOPlugin(object):
     def __init__(self, path, **dummy_kwargs):
         self.path = path
         self.arguments_dest = []
-        self.script_name = None
         if 'arguments' in dummy_kwargs:
             self.arguments = dummy_kwargs['arguments']
         else:
@@ -491,7 +490,16 @@ def dump_pem_jwk(data):
     ).strip()
 
 
-@IOPlugin.register(path='external.sh', typ=OpenSSL.crypto.FILETYPE_PEM)
+@IOPlugin.register(path='external.sh', typ=OpenSSL.crypto.FILETYPE_PEM,
+                   arguments=[
+                       [
+                           ['--script'],
+                           {
+                               'default': os.path.join('.', "external.sh"),
+                               'help': 'Script file for external.sh plugin',
+                           }
+                       ]
+                   ])
 class ExternalIOPlugin(OpenSSLIOPlugin):
     """External IO Plugin.
 
@@ -513,11 +521,6 @@ class ExternalIOPlugin(OpenSSLIOPlugin):
       it should accept data from STDIN and persist it. Data is encoded
       and ordered in the same way as in the `load` case.
     """
-
-    @property
-    def script(self):
-        """Path to the script."""
-        return os.path.join('.', self.path)
 
     def get_output_or_fail(self, command):
         """Get output or throw an exception in case of errors."""
