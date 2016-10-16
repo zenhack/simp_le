@@ -499,6 +499,38 @@ def dump_pem_jwk(data):
         encryption_algorithm=serialization.NoEncryption(),
     ).strip()
 
+@IOPlugin.register(path='save_dns01_validation',
+                   arguments=[
+                       [
+                           ['--domain'],
+                           {
+                               'dest': 'domains',
+                               'action': 'append', 'help': 'Domain name '
+                               'that will be included in the certificate. '
+                               'Must be specified at least once.',
+                               'metavar': 'DOMAIN',
+                           },
+                       ],
+                   ])
+class SaveDNS01ValidationIOPlugin(IOPlugin):
+    def persisted(self):
+        return self.Data(
+            account_key=False,
+            key=False,
+            cert=False,
+            chain=False,
+            challenge=True,
+        )
+
+    def load(self):
+        return self.set_data(challenge={
+            'domains':self.domains
+        })
+
+    def save(self, data):
+        if data.challenge:
+            print('please add txt record for', data.challenge['domain_name'], 'with value', data.challenge['validation'])
+            input()
 
 @IOPlugin.register(path='save_validation',
                    arguments=[
@@ -1015,7 +1047,7 @@ def create_parser():
     return parser
 
 
-def supported_challb(authorization):
+def supported_challb(authorization, challenge_type):
     """Find supported challenge body.
 
     This plugin supports only `http-01`, so CA must offer it as a
@@ -1028,7 +1060,7 @@ def supported_challb(authorization):
     for combo in authorization.body.combinations:
         first_challb = authorization.body.challenges[combo[0]]
         if len(combo) == 1 and isinstance(
-                first_challb.chall, challenges.HTTP01):
+                first_challb.chall, challenge_type):
             return first_challb
     return None
 
@@ -1333,26 +1365,38 @@ def persist_new_data(args, existing_data):
     """Issue and persist new key/cert/chain."""
 
     client = registered_client(args, existing_data.account_key)
+    if 'vhosts' in existing_data.challenge:
+        domains = [vhost.name for vhost in existing_data.challenge['vhosts']]
+        challenge_type = challenges.HTTP01
+    elif 'domains' in existing_data.challenge:
+        domains = existing_data.challenge['domains']
+        challenge_type = challenges.DNS01
+    else:
+        domains = []
 
     authorizations = dict(
-        (vhost.name, client.request_domain_challenges(
-            vhost.name, new_authzr_uri=client.directory.new_authz))
-        for vhost in existing_data.challenge['vhosts']
+        (domain, client.request_domain_challenges(
+            domain, new_authzr_uri=client.directory.new_authz))
+        for domain in domains
     )
-    if any(supported_challb(auth) is None
+    if any(supported_challb(auth, challenge_type) is None
            for auth in six.itervalues(authorizations)):
         raise Error('CA did not offer http-01-only challenge combo. '
                     'This client is unable to solve any other challenges.')
 
     for name, auth in six.iteritems(authorizations):
-        challb = supported_challb(auth)
+        challb = supported_challb(auth, challenge_type)
         response, validation = challb.response_and_validation(client.key)
 
         challenge = {
             'validation': validation.encode(),
-            'path': challb.path[1:],
             'name': name,
         }
+        if 'vhosts' in existing_data.challenge:
+            challenge['path'] = challb.path[1:]
+        if 'domains' in existing_data.challenge:
+            challenge['domain_name'] = challb.validation_domain_name(name)
+
         persist_data(args, existing_data, new_data=IOPlugin.Data(
             account_key=client.key, key=None,
             cert=None, chain=None, challenge=challenge))
@@ -1374,7 +1418,7 @@ def persist_new_data(args, existing_data):
     else:
         logger.info('Generating new certificate private key')
         key = ComparablePKey(gen_pkey(args.cert_key_size))
-    csr = gen_csr(key.wrapped, [vhost.name.encode() for vhost in existing_data.challenge['vhosts']])
+    csr = gen_csr(key.wrapped, [domain.encode() for domain in domains])
     certr = get_certr(client, csr, authorizations)
     persist_data(args, existing_data, new_data=IOPlugin.set_data(
         account_key=client.key, key=key,
@@ -1439,9 +1483,15 @@ def main_with_exceptions(cli_args):
     check_plugins_persist_all(args.ioplugins)
 
     existing_data = load_existing_data(args.ioplugins)
-    if existing_data.challenge['vhosts'] is None:
-        raise Error('You must set at least one -d/--vhost')
-    new_sans = [vhost.name for vhost in existing_data.challenge['vhosts']]
+    if 'vhosts' in existing_data.challenge:
+        if existing_data.challenge['vhosts'] is None:
+            raise Error('You must set at least one -d/--vhost')
+        new_sans = [vhost.name for vhost in existing_data.challenge['vhosts']]
+    elif 'domains' in existing_data.challenge:
+        new_sans = existing_data.challenge['domains']
+    else:
+        raise Error('You must set at least one -d/--vhost/--domain')
+
     if valid_existing_cert(existing_data.cert, new_sans, args.valid_min):
         logger.info('Certificates already exist and renewal is not '
                     'necessary, exiting with status code %d.', EXIT_NO_RENEWAL)
