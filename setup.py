@@ -9,7 +9,7 @@ readme = codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8').read()
 version = '0'  # set static for now
 
 install_requires = [
-    'acme>=0.4.1,<0.9',
+    'acme>=0.9,<0.10',
     'cryptography',
     'pyOpenSSL',
     'pytz',
