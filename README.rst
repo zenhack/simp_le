@@ -14,8 +14,8 @@ Simple `Let’s Encrypt`_ client.
 
 For more info see ``simp_le --help``.
 
-Manifest
---------
+Manifesto
+---------
 
 1.  `UNIX philosophy`_: Do one thing and do it well!
 
