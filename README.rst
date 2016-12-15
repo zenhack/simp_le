@@ -84,5 +84,5 @@ Freenode)`_
 .. _UNIX philosophy: https://en.wikipedia.org/wiki/Unix_philosophy
 .. _IRC (#simp\_le at Freenode): http://webchat.freenode.net?randomnick=1&channels=%23simp_le&prompt=1
 
-.. |Build Status| image:: https://travis-ci.org/kuba/simp_le.svg?branch=master
-   :target: https://travis-ci.org/kuba/simp_le
+.. |Build Status| image:: https://travis-ci.org/zenhack/simp_le.svg?branch=master
+   :target: https://travis-ci.org/zenhack/simp_le
