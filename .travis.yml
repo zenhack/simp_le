@@ -33,6 +33,7 @@ env:
   global:
     - GOPATH=/tmp/go
     - PATH=$GOPATH/bin:$PATH
+    - GO15VENDOREXPERIMENT=1
   # delegate tests to tox; build matrix contains one suite per testenv
   matrix:
     - TOXENV=py26
