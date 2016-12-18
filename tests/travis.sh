@@ -77,3 +77,5 @@ case $1 in
     fi
     ;;
 esac
+
+# vim: set ts=2 sw=2 et :
