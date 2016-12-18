@@ -10,6 +10,9 @@ SERVER=http://localhost:4000/directory
 PORT=5002
 
 integration_install() {
+  # Helps with diagnostics to have this in the output:
+  go version
+
   # `/...` avoids `no buildable Go source files` errors, for more info
   # see `go help packages`
   go get -d github.com/letsencrypt/boulder/... &
