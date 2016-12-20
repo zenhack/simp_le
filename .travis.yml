@@ -3,11 +3,13 @@ language: python
 
 # container-based architecture
 sudo: false
-
 services:
   # integration tests Boulder needs AMQP
   - rabbitmq
-
+go:
+  # Default travis Go is 1.5; we need to keep in sync with what boulder wants
+  # to use.
+  - 1.7.3
 addons:
   mariadb: '10.1'
   hosts:
@@ -33,7 +35,6 @@ env:
   global:
     - GOPATH=/tmp/go
     - PATH=$GOPATH/bin:$PATH
-    - GO15VENDOREXPERIMENT=1
   # delegate tests to tox; build matrix contains one suite per testenv
   matrix:
     - TOXENV=py26
