@@ -1,17 +1,9 @@
 # configuration for https://travis-ci.org
 language: python
 
-# container-based architecture
-sudo: false
 services:
-  # integration tests Boulder needs AMQP
-  - rabbitmq
-go:
-  # Default travis Go is 1.5; we need to keep in sync with what boulder wants
-  # to use.
-  - 1.7.3
+  - docker
 addons:
-  mariadb: '10.1'
   hosts:
     - le.wtf
     - le2.wtf
@@ -28,8 +20,6 @@ addons:
       - python
       - python-dev
       - python-virtualenv
-      # Boulder integration test deps
-      - rsyslog
 
 env:
   global:
