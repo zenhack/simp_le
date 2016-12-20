@@ -9,7 +9,7 @@ services:
   - rabbitmq
 
 addons:
-  mariadb: '10.0'
+  mariadb: '10.1'
   hosts:
     - le.wtf
     - le2.wtf
