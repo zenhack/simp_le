@@ -69,6 +69,7 @@ case $1 in
     if [ "x$BOULDER_INTEGRATION" != "x" ]; then
       . .tox/$TOXENV/bin/activate
       pip -V
+      simp_le -v --test
       simp_le -v --integration_test
     fi
     ;;
