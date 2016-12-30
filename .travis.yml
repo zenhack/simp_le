@@ -20,6 +20,15 @@ addons:
       - python
       - python-dev
       - python-virtualenv
+    # python3.5 is not pre-installed on Travis,
+    # https://github.com/travis-ci/travis-ci/issues/4794#issuecomment-143758799
+    #
+    # We do this instead of setting travis's python: option, because for some
+    # odd reason, that gives us errors about missing docker-compose:
+    # https://travis-ci.org/zenhack/simp_le/jobs/187594794#L218
+      - python3.5
+    sources:
+      - deadsnakes
 
 env:
   global:
@@ -31,19 +40,13 @@ env:
     - TOXENV=py27
     - TOXENV=py33
     - TOXENV=py34
+    - TOXENV=py35
     - TOXENV=py26-oldest
     - TOXENV=py27-oldest
     - TOXENV=py33-oldest
     - TOXENV=py34-oldest
+    - TOXENV=py35-oldest
     - TOXENV=lint
-matrix:
-  include:
-    # python3.5 is not pre-installed on Travis,
-    # https://github.com/travis-ci/travis-ci/issues/4794#issuecomment-143758799
-    - env: TOXENV=py35
-      python: 3.5
-    - env: TOXENV=py35-oldest
-      python: 3.5
 
 before_install: ./tests/travis.sh before_install
 install: ./tests/travis.sh install
