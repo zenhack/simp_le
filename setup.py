@@ -34,12 +34,12 @@ tests_require = [
 setuptools.setup(
     name='simp_le',
     version=version,
-    author='Jakub Warmuz',
-    author_email='jakub@warmuz.org',
+    author='Ian Denhardt',
+    author_email='ian@zenhack.net',
     description="Simple Let's Encrypt Client",
     long_description=readme,
     license='GPLv3',
-    url='https://github.com/kuba/simp_le',
+    url='https://github.com/zenhack/simp_le',
     py_modules=['simp_le'],
     install_requires=install_requires,
     extras_require={
