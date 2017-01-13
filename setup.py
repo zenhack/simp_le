@@ -6,7 +6,6 @@ import setuptools
 
 here = os.path.abspath(os.path.dirname(__file__))
 readme = codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8').read()
-version = '0'  # set static for now
 
 install_requires = [
     'acme>=0.9,<0.10',
@@ -33,7 +32,6 @@ tests_require = [
 
 setuptools.setup(
     name='simp_le',
-    version=version,
     author='Ian Denhardt',
     author_email='ian@zenhack.net',
     description="Simple Let's Encrypt Client",
@@ -41,6 +39,8 @@ setuptools.setup(
     license='GPLv3',
     url='https://github.com/zenhack/simp_le',
     py_modules=['simp_le'],
+    setup_requires=['setuptools_scm'],
+    use_scm_version=True,
     install_requires=install_requires,
     extras_require={
         'tests': tests_require,
