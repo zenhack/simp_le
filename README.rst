@@ -86,3 +86,16 @@ Freenode)`_
 
 .. |Build Status| image:: https://travis-ci.org/zenhack/simp_le.svg?branch=master
    :target: https://travis-ci.org/zenhack/simp_le
+
+
+Change Log
+----------
+
+Below is a summary of changes introduced in each release. Any user-visible
+changes *must* be recorded here. Note that the topmost entry typically
+represents the *next* (i.e. not yet released) version.
+
+0.1.0
++++++
+
+* First release
