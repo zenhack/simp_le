@@ -64,7 +64,7 @@ from acme import messages
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 VERSION = '0'
-URL = 'https://github.com/kuba/simp_le'
+URL = 'https://github.com/zenhack/simp_le'
 
 LE_PRODUCTION_URI = 'https://acme-v01.api.letsencrypt.org/directory'
 # https://letsencrypt.org/2015/11/09/why-90-days.html
