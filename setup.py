@@ -31,7 +31,7 @@ tests_require = [
 ]
 
 setuptools.setup(
-    name='simp_le',
+    name='simp_le-client',
     author='Ian Denhardt',
     author_email='ian@zenhack.net',
     description="Simple Let's Encrypt Client",

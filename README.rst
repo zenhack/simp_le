@@ -95,6 +95,13 @@ Below is a summary of changes introduced in each release. Any user-visible
 changes *must* be recorded here. Note that the topmost entry typically
 represents the *next* (i.e. not yet released) version.
 
+0.1.1
++++++
+
+* Change the package name; the original maintainer owns the simp_le PyPI
+  package, and hasn't responded to requests to transfer it, so the package name
+  is now 'simp_le-client'.
+
 0.1.0
 +++++
 
