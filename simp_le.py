@@ -288,7 +288,7 @@ class IOPlugin(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    Data = collections.namedtuple('IOPluginData', 'account_key key cert chain')
+    Data = collections.namedtuple('IOPluginData', 'account_key key cert chain challenge')
     """Plugin data.
 
     Unless otherwise stated, plugin data components are typically
@@ -298,12 +298,39 @@ class IOPlugin(object):
     - for `key`: private key, an instance of `OpenSSL.crypto.PKey`
     - for `cert`: certificate, an instance of `OpenSSL.crypto.X509`
     - for `chain`: certificate chain, a list of `OpenSSL.crypto.X509` instances
+    - for `challenge`: certificate challenge, FIXME
     """
 
-    EMPTY_DATA = Data(account_key=None, key=None, cert=None, chain=None)
+    @classmethod
+    def set_data(cls, account_key=None, key=None, cert=None, chain=None, challenge=None):
+        return cls.Data(account_key, key, cert, chain, challenge)
+
+    @classmethod
+    def set_data_bool(cls, account_key=False, key=False, cert=False, chain=False, challenge=False):
+        return cls.Data(account_key, key, cert, chain, challenge)
+
+    EMPTY_DATA = Data(account_key=None, key=None, cert=None, chain=None,
+                      challenge=None)
 
     def __init__(self, path, **dummy_kwargs):
         self.path = path
+        self.arguments_dest = []
+        self.script_name = None
+        if 'arguments' in dummy_kwargs:
+            self.arguments = dummy_kwargs['arguments']
+        else:
+            self.arguments = None
+
+    def add_arguments(self, manager):
+        if self.arguments:
+            for argument in self.arguments:
+                storeAction = manager.add_argument(*argument[0], **argument[1])
+                self.arguments_dest.append(storeAction.dest)
+
+    def set_arguments(self, args):
+        vargs = vars(args)
+        for dest in self.arguments_dest:
+            setattr(self, dest, vargs[dest])
 
     @abc.abstractmethod
     def persisted(self):
@@ -420,11 +447,10 @@ class AccountKey(FileIOPlugin, JWKIOPlugin):
     WRITE_MODE = 'w'
 
     def persisted(self):
-        return self.Data(account_key=True, key=False, cert=False, chain=False)
+        return self.set_data_bool(account_key=True)
 
     def load_from_content(self, content):
-        return self.Data(account_key=self.load_jwk(content), key=None,
-                         cert=None, chain=None)
+        return self.set_data(account_key=self.load_jwk(content))
 
     def save(self, data):
         return self.save_to_file(self.dump_jwk(data.account_key))
@@ -474,6 +500,83 @@ def dump_pem_jwk(data):
     ).strip()
 
 
+@IOPlugin.register(path='save_validation',
+                   arguments=[
+                       [
+                           ['-d', '--vhost'],
+                           {
+                               'dest': 'vhosts',
+                               'action': 'append', 'help': 'Domain name '
+                               'that will be included in the certificate. '
+                               'Must be specified at least once.',
+                               'metavar': 'DOMAIN:PATH', 'type':
+                               Vhost.decode,
+                           },
+                       ],
+                       [
+                           ['--default_root'],
+                           {
+                               'help': 'Default webroot path.',
+                               'metavar': 'PATH',
+                           },
+                       ]
+                   ])
+class SaveValidationIOPlugin(IOPlugin):
+    def persisted(self):
+        return self.Data(
+            account_key=False,
+            key=False,
+            cert=False,
+            chain=False,
+            challenge=True,
+        )
+
+    def load(self):
+        return self.set_data(challenge={
+            'vhosts':self.vhosts
+        })
+    def compute_roots(self, vhosts, default_root):
+        """Compute webroots.
+
+        Args:
+          vhosts: collection of `Vhost` objects.
+          default_root: Default webroot path.
+
+        Returns:
+          Dictionary mapping vhost name to its webroot path. Vhosts without
+          a root will be pre-populated with the `default_root`.
+        """
+        roots = {}
+        for vhost in vhosts:
+            if vhost.root is not None:
+                root = vhost.root
+            else:
+                root = default_root
+            roots[vhost.name] = root
+
+        empty_roots = dict((name, root)
+                           for name, root in six.iteritems(roots) if root is None)
+        if empty_roots:
+            raise Error('Root for the following host(s) were not specified: %s. '
+                        'Try --default_root or use -d example.com:/var/www/html '
+                        'syntax' % ', '.join(empty_roots))
+        return roots
+
+    def save(self, data):
+        if data.challenge:
+            roots = self.compute_roots(self.vhosts, self.default_root)
+            logger.debug('Computed roots: %r', roots)
+            path = os.path.join(roots[data.challenge['name']], data.challenge['path'])
+            try:
+                os.makedirs(os.path.dirname(path))
+            except OSError as error:
+                if error.errno != errno.EEXIST:
+                    # directory doesn't already exist and we cannot create it
+                    raise
+            with open(path, 'wb') as validation_file:
+                logger.debug('Saving validation (%r) at %s', data.challenge['validation'], data.challenge['path'])
+                validation_file.write(data.challenge['validation'])
+
 @IOPlugin.register(path='external.sh', typ=OpenSSL.crypto.FILETYPE_PEM)
 class ExternalIOPlugin(OpenSSLIOPlugin):
     """External IO Plugin.
@@ -483,8 +586,8 @@ class ExternalIOPlugin(OpenSSLIOPlugin):
 
     - whenever the script is called with `persisted` as the first
       argument, it should send to STDOUT a single line consisting of a
-      subset of three keywords: `account_key`, `key`, `cart`, `chain`
-      (in any order, separated by whitespace);
+      subset of three keywords: `account_key`, `key`, `cart`, `chain`,
+      `challenge` (in any order, separated by whitespace);
 
     - whenever the script is called with `load` as the first argument it
       shall write to STDOUT all persisted data as PEM encoded strings in
@@ -525,7 +628,7 @@ class ExternalIOPlugin(OpenSSLIOPlugin):
     def persisted(self):
         """Call the external script and see which data is persisted."""
         output = self.get_output_or_fail('persisted').split()
-        return self.Data(
+        return self.set_data_bool(
             account_key=(b'account_key' in output),
             key=(b'key' in output),
             cert=(b'cert' in output),
@@ -545,20 +648,22 @@ class ExternalIOPlugin(OpenSSLIOPlugin):
         cert = self.load_cert(pems.pop(0)) if persisted.cert else None
         chain = ([self.load_cert(cert_data) for cert_data in pems]
                  if persisted.chain else None)
-        return self.Data(account_key=account_key, key=key,
+        return self.set_data(account_key=account_key, key=key,
                          cert=cert, chain=chain)
 
     def save(self, data):
         """Call the external script and send data to be persisted to STDIN."""
         persisted = self.persisted()
         output = []
+        if persisted.challenge:
+            output.append(data.challenge)
         if persisted.account_key:
             output.append(dump_pem_jwk(data.account_key))
-        if persisted.key:
+        if persisted.key and data.key:
             output.append(self.dump_key(data.key))
-        if persisted.cert:
+        if persisted.cert and data.cert:
             output.append(self.dump_cert(data.cert))
-        if persisted.chain:
+        if persisted.chain and data.chain:
             output.extend(self.dump_cert(cert) for cert in data.chain)
 
         logger.info('Calling `%s save` and piping data through', self.script)
@@ -601,6 +706,7 @@ class PluginIOTestMixin(object):
                 jose.ComparableX509(crypto_util.gen_ss_cert(raw_key, ['b'])),
                 jose.ComparableX509(crypto_util.gen_ss_cert(raw_key, ['c'])),
             ],
+            challenge=None,
         )
         self.key_data = IOPlugin.EMPTY_DATA._replace(key=self.all_data.key)
 
@@ -684,12 +790,12 @@ class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
     """Certificate chain plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=False, cert=False, chain=True)
+        return self.set_data_bool(chain=True)
 
     def load_from_content(self, output):
         chain = [self.load_cert(cert_data)
                  for cert_data in split_pems(output)]
-        return self.Data(account_key=None, key=None, cert=None, chain=chain)
+        return self.set_data(chain=chain)
 
     def save(self, data):
         return self.save_to_file(_PEMS_SEP.join(
@@ -707,7 +813,7 @@ class FullChainFile(ChainFile):
     """Full chain file plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=False, cert=True, chain=True)
+        return self.set_data_bool(cert=True, chain=True)
 
     def load(self):
         data = super(FullChainFile, self).load()
@@ -715,13 +821,13 @@ class FullChainFile(ChainFile):
             cert, chain = None, None
         else:
             cert, chain = data.chain[0], data.chain[1:]
-        return self.Data(account_key=data.account_key, key=data.key,
+        return self.set_data(account_key=data.account_key, key=data.key,
                          cert=cert, chain=chain)
 
     def save(self, data):
-        return super(FullChainFile, self).save(self.Data(
+        return super(FullChainFile, self).save(self.set_data(
             account_key=data.account_key, key=data.key,
-            cert=None, chain=([data.cert] + data.chain)))
+            chain=([data.cert] + data.chain)))
 
 
 class FullChainFileTest(FileIOPluginTestMixin, UnitTestCase):
@@ -736,11 +842,10 @@ class KeyFile(FileIOPlugin, OpenSSLIOPlugin):
     """Private key file plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=True, cert=False, chain=False)
+        return self.set_data_bool(key=True)
 
     def load_from_content(self, output):
-        return self.Data(account_key=None, key=self.load_key(output),
-                         cert=None, chain=None)
+        return self.set_data(key=self.load_key(output))
 
     def save(self, data):
         return self.save_to_file(self.dump_key(data.key))
@@ -758,11 +863,10 @@ class CertFile(FileIOPlugin, OpenSSLIOPlugin):
     """Certificate file plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=False, cert=True, chain=False)
+        return self.set_data_bool(cert=True)
 
     def load_from_content(self, output):
-        return self.Data(account_key=None, key=None,
-                         cert=self.load_cert(output), chain=None)
+        return self.set_data(cert=self.load_cert(output))
 
     def save(self, data):
         return self.save_to_file(self.dump_cert(data.cert))
@@ -779,12 +883,11 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
     """Private key, certificate and chain plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=True, cert=True, chain=True)
+        return self.set_data_bool(key=True, cert=True, chain=True)
 
     def load_from_content(self, content):
         pems = split_pems(content)
-        return self.Data(
-            account_key=None,
+        return self.set_data(
             key=self.load_key(next(pems)),
             cert=self.load_cert(next(pems)),
             chain=[self.load_cert(cert) for cert in pems],
@@ -845,15 +948,6 @@ def create_parser():
         'specify `--default_root`, and override per-vhost with '
         '`-d example.com:/var/www/other_html` syntax.',
     )
-    manager.add_argument(
-        '-d', '--vhost', dest='vhosts', action='append',
-        help='Domain name that will be included in the certificate. '
-        'Must be specified at least once.', metavar='DOMAIN:PATH',
-        type=Vhost.decode,
-    )
-    manager.add_argument(
-        '--default_root', help='Default webroot path.', metavar='PATH',
-    )
 
     io_group = parser.add_argument_group('Certificate data files')
     io_group.add_argument(
@@ -864,6 +958,9 @@ def create_parser():
         'is necessary to cover all components: key, certificate, chain. '
         'Allowed values: %s.' % ', '.join(sorted(IOPlugin.registered)),
     )
+    for plugin_name in IOPlugin.registered:
+        IOPlugin.registered[plugin_name].add_arguments(io_group)
+
     io_group.add_argument(
         '--cert_key_size', type=int, default=4096, metavar='BITS',
         help='Certificate key size. Fresh key is created for each renewal.',
@@ -936,52 +1033,8 @@ def supported_challb(authorization):
     return None
 
 
-def compute_roots(vhosts, default_root):
-    """Compute webroots.
-
-    Args:
-      vhosts: collection of `Vhost` objects.
-      default_root: Default webroot path.
-
-    Returns:
-      Dictionary mapping vhost name to its webroot path. Vhosts without
-      a root will be pre-populated with the `default_root`.
-    """
-    roots = {}
-    for vhost in vhosts:
-        if vhost.root is not None:
-            root = vhost.root
-        else:
-            root = default_root
-        roots[vhost.name] = root
-
-    empty_roots = dict((name, root)
-                       for name, root in six.iteritems(roots) if root is None)
-    if empty_roots:
-        raise Error('Root for the following host(s) were not specified: %s. '
-                    'Try --default_root or use -d example.com:/var/www/html '
-                    'syntax' % ', '.join(empty_roots))
-    return roots
 
 
-def save_validation(root, challb, validation):
-    """Save validation to webroot.
-
-    Args:
-      root: Webroot path.
-      challb: `acme.messages.ChallengeBody` with `http-01` challenge.
-      validation: `http-01` validation
-    """
-    try:
-        os.makedirs(os.path.join(root, challb.URI_ROOT_PATH))
-    except OSError as error:
-        if error.errno != errno.EEXIST:
-            # directory doesn't already exist and we cannot create it
-            raise
-    path = os.path.join(root, challb.path[1:])
-    with open(path, 'w') as validation_file:
-        logger.debug('Saving validation (%r) at %s', validation, path)
-        validation_file.write(validation)
 
 
 def sha256_of_uri_contents(uri, chunk_size=10):
@@ -1107,8 +1160,7 @@ def integration_test(args):
 
 def check_plugins_persist_all(ioplugins):
     """Do plugins cover all components (key/cert/chain)?"""
-    persisted = IOPlugin.Data(
-        account_key=False, key=False, cert=False, chain=False)
+    persisted = IOPlugin.set_data_bool()
     for plugin_name in ioplugins:
         persisted = IOPlugin.Data(*componentwise_or(
             persisted, IOPlugin.registered[plugin_name].persisted()))
@@ -1121,6 +1173,10 @@ def check_plugins_persist_all(ioplugins):
         raise Error('Selected IO plugins do not cover the following '
                     'components: %s.' % ', '.join(not_persisted))
 
+def set_plugins_arguments(ioplugins, args):
+    """Set arguments for plugin"""
+    for plugin_name in ioplugins:
+        IOPlugin.registered[plugin_name].set_arguments(args)
 
 def load_existing_data(ioplugins):
     """Load existing data from disk.
@@ -1170,12 +1226,12 @@ def pyopenssl_cert_or_req_san(cert):
     return crypto_util._pyopenssl_cert_or_req_san(cert)
 
 
-def valid_existing_cert(cert, vhosts, valid_min):
+def valid_existing_cert(cert, new_sans, valid_min):
     """Is the existing cert data valid for enough time?
 
     If provided certificate is `None`, then always return True:
 
-    >>> valid_existing_cert(cert=None, vhosts=[], valid_min=0)
+    >>> valid_existing_cert(cert=None, new_sans=[], valid_min=0)
     False
 
     >>> cert = jose.ComparableX509(crypto_util.gen_ss_cert(
@@ -1183,22 +1239,21 @@ def valid_existing_cert(cert, vhosts, valid_min):
 
     Return True iff `valid_min` is not bigger than certificate lifespan:
 
-    >>> valid_existing_cert(cert, [Vhost.decode('example.com')], 0)
+    >>> valid_existing_cert(cert, ['example.com'], 0)
     True
-    >>> valid_existing_cert(cert, [Vhost.decode('example.com')], 60 * 60 + 1)
+    >>> valid_existing_cert(cert, ['example.com'], 60 * 60 + 1)
     False
 
     If SANs mismatch return False no matter if expiring or not:
 
-    >>> valid_existing_cert(cert, [Vhost.decode('example.net')], 0)
+    >>> valid_existing_cert(cert, ['example.net'], 0)
     False
-    >>> valid_existing_cert(cert, [Vhost.decode('example.org')], 60 * 60 + 1)
+    >>> valid_existing_cert(cert, ['example.org'], 60 * 60 + 1)
     False
     """
     if cert is None:
         return False  # no existing certificate
     else:  # renew existing?
-        new_sans = [vhost.name for vhost in vhosts]
         existing_sans = pyopenssl_cert_or_req_san(cert.wrapped)
         logger.debug('Existing SANs: %r, new: %r', existing_sans, new_sans)
         return (set(existing_sans) == set(new_sans) and
@@ -1276,15 +1331,13 @@ def get_certr(client, csr, authorizations):
 
 def persist_new_data(args, existing_data):
     """Issue and persist new key/cert/chain."""
-    roots = compute_roots(args.vhosts, args.default_root)
-    logger.debug('Computed roots: %r', roots)
 
     client = registered_client(args, existing_data.account_key)
 
     authorizations = dict(
         (vhost.name, client.request_domain_challenges(
             vhost.name, new_authzr_uri=client.directory.new_authz))
-        for vhost in args.vhosts
+        for vhost in existing_data.challenge['vhosts']
     )
     if any(supported_challb(auth) is None
            for auth in six.itervalues(authorizations)):
@@ -1294,7 +1347,16 @@ def persist_new_data(args, existing_data):
     for name, auth in six.iteritems(authorizations):
         challb = supported_challb(auth)
         response, validation = challb.response_and_validation(client.key)
-        save_validation(roots[name], challb, validation)
+
+        challenge = {
+            'validation': validation.encode(),
+            'path': challb.path[1:],
+            'name': name,
+        }
+        persist_data(args, existing_data, new_data=IOPlugin.Data(
+            account_key=client.key, key=None,
+            cert=None, chain=None, challenge=challenge))
+
 
         verified = response.simple_verify(
             challb.chall, name, client.key.public_key())
@@ -1312,11 +1374,11 @@ def persist_new_data(args, existing_data):
     else:
         logger.info('Generating new certificate private key')
         key = ComparablePKey(gen_pkey(args.cert_key_size))
-    csr = gen_csr(key.wrapped, [vhost.name.encode() for vhost in args.vhosts])
+    csr = gen_csr(key.wrapped, [vhost.name.encode() for vhost in existing_data.challenge['vhosts']])
     certr = get_certr(client, csr, authorizations)
-    persist_data(args, existing_data, new_data=IOPlugin.Data(
+    persist_data(args, existing_data, new_data=IOPlugin.set_data(
         account_key=client.key, key=key,
-        cert=certr.body, chain=client.fetch_chain(certr)))
+        cert=certr.body, chain=client.fetch_chain(certr), challenge=None))
 
 
 def revoke(args):
@@ -1373,12 +1435,14 @@ def main_with_exceptions(cli_args):
     if args.revoke:  # --revoke
         return revoke(args)
 
-    if args.vhosts is None:
-        raise Error('You must set at least one -d/--vhost')
+    set_plugins_arguments(args.ioplugins, args)
     check_plugins_persist_all(args.ioplugins)
 
     existing_data = load_existing_data(args.ioplugins)
-    if valid_existing_cert(existing_data.cert, args.vhosts, args.valid_min):
+    if existing_data.challenge['vhosts'] is None:
+        raise Error('You must set at least one -d/--vhost')
+    new_sans = [vhost.name for vhost in existing_data.challenge['vhosts']]
+    if valid_existing_cert(existing_data.cert, new_sans, args.valid_min):
         logger.info('Certificates already exist and renewal is not '
                     'necessary, exiting with status code %d.', EXIT_NO_RENEWAL)
         return EXIT_NO_RENEWAL
@@ -1512,7 +1576,7 @@ class IntegrationTests(unittest.TestCase):
     def test_it(self):
         webroot = os.path.join(os.getcwd(), 'public_html')
         args = ('--server %s --tos_sha256 %s -f account_key.json '
-                '-f key.pem -f full.pem -d le.wtf:%s' % (
+                '-f key.pem -f full.pem -f save_validation -d le.wtf:%s' % (
                     self.SERVER, self.TOS_SHA256, webroot))
         files = ('account_key.json', 'key.pem', 'full.pem')
         with self._new_swd():
