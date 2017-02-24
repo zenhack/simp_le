@@ -18,7 +18,6 @@ setup_boulder() {
     $GOPATH/src/github.com/letsencrypt/boulder
   cd $GOPATH/src/github.com/letsencrypt/boulder
   docker-compose pull
-  docker pull letsencrypt/boulder-tools
   docker-compose build
   docker-compose run \
     -e FAKE_DNS=$docker_ip \
