@@ -95,6 +95,11 @@ Below is a summary of changes introduced in each release. Any user-visible
 changes *must* be recorded here. Note that the topmost entry typically
 represents the *next* (i.e. not yet released) version.
 
+0.1.2
++++++
+
+* Upgrade to acme 0.11.x
+
 0.1.1
 +++++
 
