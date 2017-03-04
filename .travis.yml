@@ -28,6 +28,7 @@ addons:
     # https://travis-ci.org/zenhack/simp_le/jobs/187594794#L218
       - python3.5
       - python3.6
+      - python3.6-dev
     sources:
       - deadsnakes
 
