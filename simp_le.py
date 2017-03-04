@@ -483,7 +483,7 @@ class ExternalIOPlugin(OpenSSLIOPlugin):
 
     - whenever the script is called with `persisted` as the first
       argument, it should send to STDOUT a single line consisting of a
-      subset of three keywords: `account_key`, `key`, `cart`, `chain`
+      subset of four keywords: `account_key`, `key`, `cert`, `chain`
       (in any order, separated by whitespace);
 
     - whenever the script is called with `load` as the first argument it
