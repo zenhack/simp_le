@@ -20,13 +20,14 @@ addons:
       - python
       - python-dev
       - python-virtualenv
-    # python3.5 is not pre-installed on Travis,
+    # python3.5 and python3.6 are not pre-installed on Travis,
     # https://github.com/travis-ci/travis-ci/issues/4794#issuecomment-143758799
     #
     # We do this instead of setting travis's python: option, because for some
     # odd reason, that gives us errors about missing docker-compose:
     # https://travis-ci.org/zenhack/simp_le/jobs/187594794#L218
       - python3.5
+      - python3.6
     sources:
       - deadsnakes
 
@@ -38,11 +39,13 @@ env:
     - TOXENV=py33
     - TOXENV=py34
     - TOXENV=py35
+    - TOXENV=py36
     - TOXENV=py26-oldest
     - TOXENV=py27-oldest
     - TOXENV=py33-oldest
     - TOXENV=py34-oldest
     - TOXENV=py35-oldest
+    - TOXENV=py36-oldest
     - TOXENV=lint
 
 before_install: ./tests/travis.sh before_install
