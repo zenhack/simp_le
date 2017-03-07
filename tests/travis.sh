@@ -9,6 +9,13 @@ set -xe
 SERVER=http://localhost:4000/directory
 PORT=5002
 
+here=$(dirname "$0")
+
+# Would just use realpath, but it's not available on travis apparently:
+cd $(dirname $0)
+here=$PWD
+cd -
+
 setup_boulder() {
   # Per the boulder README:
   docker_ip=$(ifconfig docker0 | grep "inet addr:" | cut -d: -f2 | awk '{ print $1}')
@@ -17,6 +24,7 @@ setup_boulder() {
   git clone --depth=1 https://github.com/letsencrypt/boulder \
     $GOPATH/src/github.com/letsencrypt/boulder
   cd $GOPATH/src/github.com/letsencrypt/boulder
+  patch -p1 < "$here/boulder-config.patch"
   docker-compose pull
   docker-compose build
   docker-compose run \
