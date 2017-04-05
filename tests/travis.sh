@@ -24,7 +24,6 @@ setup_boulder() {
   git clone --depth=1 https://github.com/letsencrypt/boulder \
     $GOPATH/src/github.com/letsencrypt/boulder
   cd $GOPATH/src/github.com/letsencrypt/boulder
-  patch -p1 < "$here/boulder-config.patch"
   docker-compose pull
   docker-compose build
   docker-compose run \
