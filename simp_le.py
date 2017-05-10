@@ -38,6 +38,8 @@ import time
 import traceback
 import unittest
 
+import pkg_resources
+
 import six
 from six.moves import zip  # pylint: disable=redefined-builtin
 
@@ -63,7 +65,7 @@ from acme import messages
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-VERSION = '0'
+VERSION = pkg_resources.require('simp_le-client')[0].version
 URL = 'https://github.com/zenhack/simp_le'
 
 LE_PRODUCTION_URI = 'https://acme-v01.api.letsencrypt.org/directory'
