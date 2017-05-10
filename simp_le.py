@@ -1043,7 +1043,6 @@ def asn1_generalizedtime_to_dt(timestamp):
     """
     dt = datetime.datetime.strptime(  # pylint: disable=invalid-name
         timestamp[:12], '%Y%m%d%H%M%S')
-    # tzinfo, pylint bug | pylint: disable=redefined-variable-type
     if timestamp.endswith('Z'):
         tzinfo = pytz.utc
     else:
