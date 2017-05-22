@@ -688,9 +688,9 @@ class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
     def persisted(self):
         return self.Data(account_key=False, key=False, cert=False, chain=True)
 
-    def load_from_content(self, output):
+    def load_from_content(self, content):
         chain = [self.load_cert(cert_data)
-                 for cert_data in split_pems(output)]
+                 for cert_data in split_pems(content)]
         return self.Data(account_key=None, key=None, cert=None, chain=chain)
 
     def save(self, data):
@@ -740,8 +740,8 @@ class KeyFile(FileIOPlugin, OpenSSLIOPlugin):
     def persisted(self):
         return self.Data(account_key=False, key=True, cert=False, chain=False)
 
-    def load_from_content(self, output):
-        return self.Data(account_key=None, key=self.load_key(output),
+    def load_from_content(self, content):
+        return self.Data(account_key=None, key=self.load_key(content),
                          cert=None, chain=None)
 
     def save(self, data):
@@ -762,9 +762,9 @@ class CertFile(FileIOPlugin, OpenSSLIOPlugin):
     def persisted(self):
         return self.Data(account_key=False, key=False, cert=True, chain=False)
 
-    def load_from_content(self, output):
+    def load_from_content(self, content):
         return self.Data(account_key=None, key=None,
-                         cert=self.load_cert(output), chain=None)
+                         cert=self.load_cert(content), chain=None)
 
     def save(self, data):
         return self.save_to_file(self.dump_cert(data.cert))
@@ -1198,12 +1198,13 @@ def valid_existing_cert(cert, vhosts, valid_min):
     """
     if cert is None:
         return False  # no existing certificate
-    else:  # renew existing?
-        new_sans = [vhost.name for vhost in vhosts]
-        existing_sans = pyopenssl_cert_or_req_san(cert.wrapped)
-        logger.debug('Existing SANs: %r, new: %r', existing_sans, new_sans)
-        return (set(existing_sans) == set(new_sans) and
-                not renewal_necessary(cert, valid_min))
+
+    # renew existing?
+    new_sans = [vhost.name for vhost in vhosts]
+    existing_sans = pyopenssl_cert_or_req_san(cert.wrapped)
+    logger.debug('Existing SANs: %r, new: %r', existing_sans, new_sans)
+    return (set(existing_sans) == set(new_sans) and
+            not renewal_necessary(cert, valid_min))
 
 
 def check_or_generate_account_key(args, existing):
@@ -1383,9 +1384,9 @@ def main_with_exceptions(cli_args):
         logger.info('Certificates already exist and renewal is not '
                     'necessary, exiting with status code %d.', EXIT_NO_RENEWAL)
         return EXIT_NO_RENEWAL
-    else:
-        persist_new_data(args, existing_data)
-        return EXIT_RENEWAL
+
+    persist_new_data(args, existing_data)
+    return EXIT_RENEWAL
 
 
 def exit_with_error(message):
@@ -1395,7 +1396,9 @@ def exit_with_error(message):
     return EXIT_ERROR
 
 
-def main(cli_args=sys.argv[1:]):
+def main(cli_args=tuple(sys.argv[1:])):     # tuple avoids a pylint warning
+                                            # about (mutable) list as default
+                                            # argument.
     """Run the script, with exceptions caught and printed to STDERR."""
     # logging (handler) is not set up yet, use STDERR only!
     try:
@@ -1423,11 +1426,13 @@ class MainTest(UnitTestCase):
 
     @mock.patch('sys.stdout')
     def test_exit_code_help_version_ok(self, dummy_stdout):
+        # pylint: disable=unused-argument
         self.assertEqual(EXIT_HELP_VERSION_OK, self._run('--help'))
         self.assertEqual(EXIT_HELP_VERSION_OK, self._run('--version'))
 
     @mock.patch('sys.stderr')
     def test_error_exit_codes(self, dummy_stderr):
+        # pylint: disable=unused-argument
         test_args = [
             '',  # no args - no good
             '--bar',  # unrecognized
