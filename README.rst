@@ -75,7 +75,7 @@ Help
 ----
 
 Have a look into ``./examples/`` and
-https://github.com/kuba/simp\_le/wiki/Examples.
+https://github.com/zenhack/simp\_le/wiki/Examples.
 
 If you’re having problems you can chat with us on `IRC (#simp\_le at
 Freenode)`_
