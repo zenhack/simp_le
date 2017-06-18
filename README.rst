@@ -5,10 +5,6 @@ simp\_le
 
 Simple `Let’s Encrypt`_ client.
 
-N.B. this was originally a fork of https://github.com/kuba/simp\_le,
-which is unmaintained and has some breakage due to bitrot. Thanks to
-@kuba for the original implementation.
-
 .. code:: shell
 
     simp_le --email you@example.com -f account_key.json \
@@ -17,6 +13,10 @@ which is unmaintained and has some breakage due to bitrot. Thanks to
       -d example.net:/var/www/other_html
 
 For more info see ``simp_le --help``.
+
+N.B. this was originally a fork of https://github.com/kuba/simp\_le,
+which is unmaintained and has some breakage due to bitrot. Thanks to
+@kuba for the original implementation.
 
 Manifesto
 ---------
