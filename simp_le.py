@@ -1230,9 +1230,8 @@ def registered_client(args, existing_account_key):
     new_reg = messages.NewRegistration.from_data(email=args.email)
     try:
         regr = client.register(new_reg)
-    except messages.Error as error:
-        if error.detail != 'Registration key is already in use':
-            raise
+    except acme_errors.ConflictError as error:
+        logger.debug('Client already registered: %s', error.location)
     else:
         if regr.terms_of_service is not None:
             tos_hash = sha256_of_uri_contents(regr.terms_of_service)
