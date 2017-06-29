@@ -20,6 +20,10 @@ addons:
       - python
       - python-dev
       - python-virtualenv
+    # python2.6 was removed from the Travis Trusty image in Jun 2017; we install
+    # it ourselves.
+      - python2.6
+      - python2.6-dev
     # python3.5 and python3.6 are not pre-installed on Travis,
     # https://github.com/travis-ci/travis-ci/issues/4794#issuecomment-143758799
     #
