@@ -8,7 +8,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 readme = codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8').read()
 
 install_requires = [
-    'acme>=0.15,<0.16',
+    'acme>=0.16,<0.17',
     'cryptography',
     'pyOpenSSL',
     'pytz',
