@@ -99,6 +99,11 @@ Below is a summary of changes introduced in each release. Any user-visible
 changes *must* be recorded here. Note that the topmost entry sometimes
 represents the *next* (i.e. not yet released) version.
 
+0.4.0
++++++
+
+* Upgrade acme to 0.16.x
+
 0.3.0
 +++++
 
