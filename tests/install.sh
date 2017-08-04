@@ -56,27 +56,14 @@ wait_for_boulder() {
   done
 }
 
-if [ "py${TOXENV#py}" = "${TOXENV}" ]; then
-  BOULDER_INTEGRATION=yes
-fi
-
 case $1 in
-  install)
-    pip install tox
-    if [ "x$BOULDER_INTEGRATION" != "x" ]; then
-      setup_boulder
-      setup_webroot
-      wait_for_boulder
-    fi
+  lint_suite)
+    pip install pep8 pylint
     ;;
-  script)
-    export TOXENV
-    tox
-    if [ "x$BOULDER_INTEGRATION" != "x" ]; then
-      . .tox/$TOXENV/bin/activate
-      pip -V
-      simp_le -v --integration_test
-    fi
+  simp_le_suite)
+    setup_boulder
+    setup_webroot
+    wait_for_boulder
     ;;
 esac
 
