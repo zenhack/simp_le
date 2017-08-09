@@ -99,6 +99,11 @@ Below is a summary of changes introduced in each release. Any user-visible
 changes *must* be recorded here. Note that the topmost entry sometimes
 represents the *next* (i.e. not yet released) version.
 
+0.5.1
++++++
+
+* Add a workaround for some installation problems caused by a bug in pip
+
 0.5.0
 +++++
 
