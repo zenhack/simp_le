@@ -99,6 +99,12 @@ Below is a summary of changes introduced in each release. Any user-visible
 changes *must* be recorded here. Note that the topmost entry sometimes
 represents the *next* (i.e. not yet released) version.
 
+0.6.0 (Upcoming)
+++++++++++++++++
+
+* Disable self-verification; this was highly unreliable and resulted in
+  spurrious warnings.
+
 0.5.1
 +++++
 

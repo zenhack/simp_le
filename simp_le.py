@@ -1261,14 +1261,20 @@ def get_certr(client, csr, authorizations):
         invalid = [authzr for authzr in six.itervalues(error.updated)
                    if authzr.body.status == messages.STATUS_INVALID]
         if invalid:
-            logger.error('CA marked some of the authorizations as invalid, '
-                         'which likely means it could not access '
-                         'http://example.com/.well-known/acme-challenge/X. '
-                         'Did you set correct path in -d example.com:path '
-                         'or --default_root? Is there a warning log entry '
-                         'about unsuccessful self-verification? Are all your '
-                         'domains accessible from the internet? Failing '
-                         'authorizations: %s',
+            logger.error("CA marked some of the authorizations as invalid, "
+                         "which likely means it could not access "
+                         "http://example.com/.well-known/acme-challenge/X. "
+                         "Did you set correct path in -d example.com:path "
+                         "or --default_root? Are all your domains accessible "
+                         "from the internet? Please check your domains' DNS "
+                         "entries, your host's network/firewall setup and "
+                         "your webserver config. If a domain's DNS entry has "
+                         "both A and AAAA fields set up, some CAs such as "
+                         "Let's Encrypt will perform the challenge validation "
+                         "over IPv6. If you haven't setup correct CAA fields "
+                         "or if your DNS provider does not support CAA, "
+                         "validation attempts after september 8, 2017 will "
+                         "fail.  Failing authorizations: %s",
                          ', '.join(authzr.uri for authzr in invalid))
 
         raise Error('Challenge validation has failed, see error log.')
@@ -1296,14 +1302,6 @@ def persist_new_data(args, existing_data):
         challb = supported_challb(auth)
         response, validation = challb.response_and_validation(client.key)
         save_validation(roots[name], challb, validation)
-
-        verified = response.simple_verify(
-            challb.chall, name, client.key.public_key())
-        if not verified:
-            logger.warning('%s was not successfully self-verified. '
-                           'CA is likely to fail as well!', name)
-        else:
-            logger.info('%s was successfully self-verified', name)
 
         client.answer_challenge(challb, response)
 
