@@ -1261,20 +1261,20 @@ def get_certr(client, csr, authorizations):
         invalid = [authzr for authzr in six.itervalues(error.updated)
                    if authzr.body.status == messages.STATUS_INVALID]
         if invalid:
-            logger.error('CA marked some of the authorizations as invalid,'
-                         ' which likely means it could not access '
-                         'http://example.com/.well-known/acme-challenge/X.'
-                         ' Did you set correct path in -d example.com:path '
-                         'or --default_root? Are all your domains accessible '
-                         'from the internet? Please check your domains DNS '
-                         'answer, your host network/firewall setup and your '
-                         'webserver config. If a domain DNS have both A and '
-                         'AAAA fields setup, some CA such as Let\'s Encrypt '
-                         'will perform the challenge validation over IPv6. If'
-                         'you haven\'t setup correct CAA fields or if your DNS'
-                         ' provider does not support CAA, validation attempts'
-                         ' after september 8, 2017 will fail.'
-                         ' Failing authorizations: %s',
+            logger.error("CA marked some of the authorizations as invalid, "
+                         "which likely means it could not access "
+                         "http://example.com/.well-known/acme-challenge/X. "
+                         "Did you set correct path in -d example.com:path "
+                         "or --default_root? Are all your domains accessible "
+                         "from the internet? Please check your domains' DNS "
+                         "entries, your host's network/firewall setup and "
+                         "your webserver config. If a domain's DNS entry has "
+                         "both A and AAAA fields set up, some CAs such as "
+                         "Let's Encrypt will perform the challenge validation "
+                         "over IPv6. If you haven't setup correct CAA fields "
+                         "or if your DNS provider does not support CAA, "
+                         "validation attempts after september 8, 2017 will "
+                         "fail.  Failing authorizations: %s",
                          ', '.join(authzr.uri for authzr in invalid))
 
         raise Error('Challenge validation has failed, see error log.')
