@@ -103,7 +103,7 @@ represents the *next* (i.e. not yet released) version.
 ++++++++++++++++
 
 * Disable self-verification; this was highly unreliable and resulted in
-  suprrious warnings.
+  spurrious warnings.
 
 0.5.1
 +++++
