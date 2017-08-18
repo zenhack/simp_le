@@ -116,7 +116,8 @@ class UnitTestCase(unittest.TestCase):
         """Assert raises simp_le error with given message."""
         self.assert_raises_regexp(Error, *args, **kwargs)
 
-    def check_logs(self, level, pattern, func):
+    @staticmethod
+    def check_logs(level, pattern, func):
         """Check whether func logs a message matching pattern.
 
         ``pattern`` is a regular expression to match the logs against.
@@ -128,6 +129,7 @@ class UnitTestCase(unittest.TestCase):
         log_msgs = []
 
         class TestHandler(logging.Handler):
+            """Log handler that saves logs in ``log_msgs``."""
 
             def emit(self, record):
                 log_msgs.append(record.msg % record.args)
@@ -659,8 +661,18 @@ class FileIOPluginTestMixin(PluginIOTestMixin):
 
 
 class PortNumWarningTest(UnitTestCase):
+    """Tests relating to the port number warning."""
 
     def _check_warn(self, should_log, path):
+        """test whether the supplied path triggers the port number warning.
+
+        ``should_log`` is a boolean indicating whether or not we expect the
+        path to trigger a warning.
+        ``path`` is the webroot path to check.
+
+        If ``should_log`` is inconsistent with the behavior of
+        ``compute_roots`` given ``path``, the test fails.
+        """
         return self.assertEqual(
             self.check_logs(
                 logging.WARN,
@@ -673,15 +685,19 @@ class PortNumWarningTest(UnitTestCase):
         )
 
     def test_warn_port(self):
+        """A bare port number triggers the warning."""
         self._check_warn(True, '8000')
 
     def test_warn_port_path(self):
+        """``port_no:path`` triggers the warning."""
         self._check_warn(True, '8000:/webroot')
 
     def test_no_warn_path(self):
+        """A bare path doesn't trigger the warning."""
         self._check_warn(False, '/my-web-root')
 
     def test_no_warn_bigport(self):
+        """A number too big to be a port doesn't trigger the warning."""
         self._check_warn(False, '66000')
 
 
