@@ -116,6 +116,34 @@ class UnitTestCase(unittest.TestCase):
         """Assert raises simp_le error with given message."""
         self.assert_raises_regexp(Error, *args, **kwargs)
 
+    def check_logs(self, level, pattern, func):
+        """Check whether func logs a message matching pattern.
+
+        ``pattern`` is a regular expression to match the logs against.
+        ``func`` is the function to call.
+        ``level`` is the logging level to set during the function call.
+
+        Returns True if there is a match, False otherwise.
+        """
+        log_msgs = []
+
+        class TestHandler(logging.Handler):
+
+            def emit(self, record):
+                log_msgs.append(record.msg % record.args)
+
+        handler = TestHandler(level=level)
+        logger.addHandler(handler)
+
+        try:
+            func()
+            for msg in log_msgs:
+                if re.match(pattern, msg) is not None:
+                    return True
+            return False
+        finally:
+            logger.removeHandler(handler)
+
 
 _PEM_RE_LABELCHAR = r'[\x21-\x2c\x2e-\x7e]'
 _PEM_RE = re.compile(
@@ -630,6 +658,33 @@ class FileIOPluginTestMixin(PluginIOTestMixin):
               zip(self.plugin.persisted(), self.all_data))))
 
 
+class PortNumWarningTest(UnitTestCase):
+
+    def _check_warn(self, should_log, path):
+        return self.assertEqual(
+            self.check_logs(
+                logging.WARN,
+                '.*looks like it is a port number.*',
+                lambda: compute_roots([
+                    Vhost('example.com', path),
+                ], 'webroot')
+            ),
+            should_log,
+        )
+
+    def test_warn_port(self):
+        self._check_warn(True, '8000')
+
+    def test_warn_port_path(self):
+        self._check_warn(True, '8000:/webroot')
+
+    def test_no_warn_path(self):
+        self._check_warn(False, '/my-web-root')
+
+    def test_no_warn_bigport(self):
+        self._check_warn(False, '66000')
+
+
 class ExternalIOPluginTest(PluginIOTestMixin, UnitTestCase):
     """Tests for ExternalIOPlugin."""
     # this is a test suite | pylint: disable=missing-docstring
@@ -953,6 +1008,19 @@ def compute_roots(vhosts, default_root):
     for vhost in vhosts:
         if vhost.root is not None:
             root = vhost.root
+
+            # We've had users mistakenly try to supplie a port number, like
+            # example.com:8000 (see issue #51). Theoretically, this could be
+            # a valid path, but it's *probably* a mistake; warn the user:
+            match = re.match(r'^([0-9]{1,5})(:|$)', root)
+            if match:
+                portno, _ = match.groups()
+                if 0 <= int(portno) < 2 ** 16:
+                    logger.warn("Your webroot path (%s) looks like it is "
+                                "a port number or starts with one; this "
+                                "should be a directory name/path. "
+                                "Continuing anyway, but this may not be what "
+                                "you intended...", root)
         else:
             root = default_root
         roots[vhost.name] = root
