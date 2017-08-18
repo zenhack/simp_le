@@ -953,6 +953,15 @@ def compute_roots(vhosts, default_root):
     for vhost in vhosts:
         if vhost.root is not None:
             root = vhost.root
+            regexp = (r'^(6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}'
+                      r'|6[0-4][0-9]{3}|[1-5][0-9]{4}'
+                      r'|[1-9][0-9]{0,3})($|:)')  # Match 1-65535
+            if re.match(regexp, vhost.root):
+                logger.warning("Your webroot path (%s) looks like it is "
+                               "a port number or starts with one; this "
+                               "should be a directory name/path. "
+                               "Continuing anyway, but this may not "
+                               "be what you intended...", vhost.root)
         else:
             root = default_root
         roots[vhost.name] = root
