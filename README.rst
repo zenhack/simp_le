@@ -24,9 +24,10 @@ Manifesto
 1.  `UNIX philosophy`_: Do one thing and do it well!
 
 2.  ``simp_le --valid_min ${seconds?} -f cert.pem`` implies that
-    ``cert.pem`` is valid for at at least ``valid_min``. Register new
-    ACME CA account if necessary. Issue new certificate if no previous
-    key/certificate/chain found. Renew only if necessary.
+    ``cert.pem`` is valid for at at least ``valid_min`` (defaults to 2592000
+    seconds / 30 days). Register new ACME CA account if necessary. Issue
+    new certificate if no previous key/certificate/chain found. Renew only
+    if necessary.
 
 3.  (Sophisticated) “manager” for
     ``${webroot?}/.well-known/acme-challenge`` only. No challenges other
