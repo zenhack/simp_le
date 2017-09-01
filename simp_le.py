@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
 # Simple Let's Encrypt client.
 #
@@ -294,10 +295,22 @@ class Vhost(collections.namedtuple('Vhost', 'name root')):
 
     @classmethod
     def decode(cls, data):
-        """Decode vhost.
+        """Decode vhost and perform basic sanitization on the domain name:
+        - raise an error if domain is not ASCII (Internationalized Domain
+        Names are supported by Let's Encrypt using punycode).
+        - converts domain to lowercase.
 
         >>> Vhost.decode('example.com')
         Vhost(name='example.com', root=None)
+        >>> Vhost.decode('EXAMPLE.COM')
+        Vhost(name='example.com', root=None)
+
+        utf-8 test with example.china:
+        >>> Vhost.decode('例如.中国')
+        Traceback (most recent call last):
+        ...
+        Error: Non-ASCII domain names aren't supported. To issue
+        for an Internationalized Domain Name, use Punycode.
         >>> Vhost.decode('example.com:/var/www/html')
         Vhost(name='example.com', root='/var/www/html')
         >>> Vhost.decode(Vhost(name='example.com', root=None))
@@ -306,6 +319,19 @@ class Vhost(collections.namedtuple('Vhost', 'name root')):
         if isinstance(data, cls):
             return data
         parts = data.split(cls._SEP, 1)
+
+        try:
+            utf8test = parts[0]
+            if isinstance(utf8test, six.binary_type):
+                utf8test = utf8test.decode('utf-8')
+            utf8test.encode('ascii')
+        except UnicodeError:
+            raise Error("Non-ASCII domain names aren't supported. "
+                        "To issue for an Internationalized Domain Name, "
+                        "use Punycode.")
+
+        parts[0] = parts[0].lower()
+
         parts.append(None)
         return cls(name=parts[0], root=parts[1])
 
