@@ -76,6 +76,11 @@ Installation
     ./venv.sh
     export PATH=$PWD/venv/bin:$PATH
 
+Usage with Docker
+-----------------
+
+If you want to use simp_le with Docker, have a look at `simp\_le for Docker`_.
+
 Help
 ----
 
@@ -88,6 +93,7 @@ Freenode)`_
 .. _Let’s Encrypt: https://letsencrypt.org
 .. _UNIX philosophy: https://en.wikipedia.org/wiki/Unix_philosophy
 .. _IRC (#simp\_le at Freenode): http://webchat.freenode.net?randomnick=1&channels=%23simp_le&prompt=1
+.. _simp\_le for Docker: docker
 
 .. |Build Status| image:: https://travis-ci.org/zenhack/simp_le.svg?branch=master
    :target: https://travis-ci.org/zenhack/simp_le
