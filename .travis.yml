@@ -1,4 +1,7 @@
 # configuration for https://travis-ci.org
+dist: trusty
+sudo: required
+
 language: python
 python:
   - "2.6"
@@ -13,9 +16,9 @@ matrix:
   include:
   - python: "2.7"
     env: TEST_SUITE=lint_suite
+  - python: "3.5"
+    env: TEST_SUITE=docker_suite
 
-services:
-  - docker
 addons:
   hosts:
     - le.wtf
@@ -25,7 +28,6 @@ addons:
     - boulder-rabbitmq
 
 install:
-  - pip install -e .
   - ./tests/install.sh $TEST_SUITE
 script:
   - ./tests/test-suite.sh $TEST_SUITE
