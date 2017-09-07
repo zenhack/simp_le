@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 #
 # Simple Let's Encrypt client.
 #
@@ -295,6 +294,7 @@ class Vhost(collections.namedtuple('Vhost', 'name root')):
 
     @classmethod
     def decode(cls, data):
+        # pylint: disable=anomalous-unicode-escape-in-string
         """Decode vhost and perform basic sanitization on the domain name:
         - raise an error if domain is not ASCII (Internationalized Domain
         Names are supported by Let's Encrypt using punycode).
@@ -306,7 +306,7 @@ class Vhost(collections.namedtuple('Vhost', 'name root')):
         Vhost(name='example.com', root=None)
 
         utf-8 test with example.china:
-        >>> Vhost.decode('例如.中国')
+        >>> Vhost.decode(u'\u4f8b\u5982.\u4e2d\u56fd')
         Traceback (most recent call last):
         ...
         Error: Non-ASCII domain names aren't supported. To issue
