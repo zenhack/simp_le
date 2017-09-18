@@ -58,9 +58,18 @@ wait_for_boulder() {
 
 case $1 in
   lint_suite)
+    pip install -e .
     pip install pep8 pylint
     ;;
   simp_le_suite)
+    pip install -e .
+    setup_boulder
+    setup_webroot
+    wait_for_boulder
+    ;;
+  docker_suite)
+    docker build -t zenhack/simp_le -f docker/Dockerfile.localbuild .
+    git clone https://github.com/docker-library/official-images.git official-images
     setup_boulder
     setup_webroot
     wait_for_boulder
