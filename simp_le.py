@@ -1422,10 +1422,15 @@ def persist_new_data(args, existing_data):
         logger.info('Generating new certificate private key')
         key = ComparablePKey(gen_pkey(args.cert_key_size))
     csr = gen_csr(key.wrapped, [vhost.name.encode() for vhost in args.vhosts])
-    certr = get_certr(client, csr, authorizations)
-    persist_data(args, existing_data, new_data=IOPlugin.Data(
-        account_key=client.key, key=key,
-        cert=certr.body, chain=client.fetch_chain(certr)))
+    try:
+        certr = get_certr(client, csr, authorizations)
+        persist_data(args, existing_data, new_data=IOPlugin.Data(
+            account_key=client.key, key=key,
+            cert=certr.body, chain=client.fetch_chain(certr)))
+    except Error as error:
+        persist_data(args, existing_data, new_data=IOPlugin.Data(
+            account_key=client.key, key=None, cert=None, chain=None))
+        raise error
 
 
 def revoke(args):
@@ -1629,9 +1634,18 @@ class IntegrationTests(unittest.TestCase):
                     self.SERVER, self.TOS_SHA256, webroot))
         files = ('account_key.json', 'key.pem', 'full.pem')
         with self._new_swd():
-            self.assertEqual(EXIT_RENEWAL, self._run(args))
-            initial_stats = self.get_stats(*files)
+            failing_webroot = os.getcwd()
+            self.assertEqual(EXIT_ERROR, self._run(
+                '--server %s --tos_sha256 %s -f account_key.json '
+                '-f key.pem -f full.pem -d le.wtf:%s' % (
+                    self.SERVER, self.TOS_SHA256, failing_webroot)))
+            # Failed authorization should generate the account key anyway
             unchangeable_stats = self.get_stats(files[0])
+
+            self.assertEqual(EXIT_RENEWAL, self._run(args))
+            # Account key should be kept from previous failed attempt
+            self.assertEqual(unchangeable_stats, self.get_stats(files[0]))
+            initial_stats = self.get_stats(*files)
 
             self.assertEqual(EXIT_NO_RENEWAL, self._run(args))
             # No renewal => no files should be touched
