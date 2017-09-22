@@ -8,14 +8,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 readme = codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8').read()
 
 install_requires = [
-    # The version constraint here is a workaround for issue #70; acme 0.18.x
-    # uses a function that was removed in 17.3.0 but does not specify this
-    # constraint. The fix is due to be released in 0.19, at which time we will
-    # remove the constraint here. Similarly, this is above the acme package in
-    # this list to deal with problems in pip's dependency solver; see the
-    # comments below re: requests/cryptography.
-    'pyOpenSSL<17.3.0',
-    'acme>=0.18,<0.19',
+    'acme>=0.18.2,<0.19',
     # Note: at the time of writing (9 Aug 2017), it is important that requests
     # come *before* cryptography, as otherwise pip fails to solve the
     # dependency graph correctly. See also:
@@ -24,6 +17,7 @@ install_requires = [
     # * https://github.com/zenhack/simp_le/issues/62
     'requests',
     'cryptography',
+    'pyOpenSSL',
     'pytz',
 ]
 
