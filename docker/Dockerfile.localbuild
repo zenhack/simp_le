@@ -9,7 +9,6 @@ COPY . /simp_le/src
 RUN apk update \
     && apk upgrade \
     && apk add \
-        bash \
         openssl \
         python3 \
     && apk add --virtual .build-deps \
@@ -29,5 +28,5 @@ WORKDIR /simp_le/certs
 
 COPY /docker/entrypoint.sh /simp_le/entrypoint.sh
 
-ENTRYPOINT [ "/bin/bash", "/simp_le/entrypoint.sh" ]
+ENTRYPOINT [ "/simp_le/entrypoint.sh" ]
 CMD [ "--help" ]

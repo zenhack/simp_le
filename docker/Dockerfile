@@ -10,7 +10,6 @@ ENV PATH=/usr/local/bin:$PATH \
 RUN apk update \
     && apk upgrade \
     && apk add \
-        bash \
         openssl \
         python3 \
     && apk add --virtual .build-deps \
@@ -29,5 +28,5 @@ COPY /entrypoint.sh /simp_le/entrypoint.sh
 
 WORKDIR /simp_le/certs
 
-ENTRYPOINT [ "/bin/bash", "/simp_le/entrypoint.sh" ]
+ENTRYPOINT [ "/simp_le/entrypoint.sh" ]
 CMD [ "--help" ]
