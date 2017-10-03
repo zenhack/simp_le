@@ -6,11 +6,12 @@ ENV PATH=/usr/local/bin:$PATH
 
 COPY . /simp_le/src 
 
-RUN apk --no-cache add \
+RUN apk update \
+    && apk add \
         bash \
         openssl \
         python3 \
-    && apk --no-cache --virtual .build-deps add \
+    && apk --virtual .build-deps add \
         gcc \
         git \
         libffi-dev \
@@ -20,7 +21,7 @@ RUN apk --no-cache add \
         python3-dev \
     && pip3 install --no-cache-dir /simp_le/src \
     && rm -rf /simp_le/src \
-    && apk --update --purge del .build-deps \
+    && apk --purge del .build-deps \
     && rm /var/cache/apk/*
 
 WORKDIR /simp_le/certs
