@@ -11,7 +11,7 @@ RUN apk update \
         bash \
         openssl \
         python3 \
-    && apk --virtual .build-deps add \
+    && apk add --virtual .build-deps \
         gcc \
         git \
         libffi-dev \
@@ -21,7 +21,7 @@ RUN apk update \
         python3-dev \
     && pip3 install --no-cache-dir /simp_le/src \
     && rm -rf /simp_le/src \
-    && apk --purge del .build-deps \
+    && apk del --purge .build-deps \
     && rm -fv /var/cache/apk/*
 
 WORKDIR /simp_le/certs
