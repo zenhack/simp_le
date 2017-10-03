@@ -22,7 +22,7 @@ RUN apk update \
         python3-dev \
     && pip3 install --no-cache-dir git+https://github.com/zenhack/simp_le.git@${SIMP_LE_VERSION} \
     && apk --purge del .build-deps \
-    && rm /var/cache/apk/*
+    && rm -fv /var/cache/apk/*
 
 COPY /entrypoint.sh /simp_le/entrypoint.sh
 

@@ -22,7 +22,7 @@ RUN apk update \
     && pip3 install --no-cache-dir /simp_le/src \
     && rm -rf /simp_le/src \
     && apk --purge del .build-deps \
-    && rm /var/cache/apk/*
+    && rm -fv /var/cache/apk/*
 
 WORKDIR /simp_le/certs
 
