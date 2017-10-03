@@ -8,6 +8,7 @@ ENV PATH=/usr/local/bin:$PATH \
     SIMP_LE_VERSION=${SIMP_LE_VERSION}
 
 RUN apk update \
+    && apk upgrade \
     && apk add \
         bash \
         openssl \

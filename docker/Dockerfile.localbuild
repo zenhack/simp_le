@@ -7,6 +7,7 @@ ENV PATH=/usr/local/bin:$PATH
 COPY . /simp_le/src 
 
 RUN apk update \
+    && apk upgrade \
     && apk add \
         bash \
         openssl \
