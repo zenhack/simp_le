@@ -1,6 +1,6 @@
 FROM alpine:3.6
 
-MAINTAINER Ian Denhardt (@zenhack)
+LABEL maintainer="Ian Denhardt (@zenhack)"
 
 ARG SIMP_LE_VERSION=master
 
