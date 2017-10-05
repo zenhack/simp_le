@@ -112,7 +112,8 @@ represents the *next* (i.e. not yet released) version.
 * Disable self-verification; this was highly unreliable and resulted in
   spurrious warnings.
 * Improve argument sanity-checks and error messages.
-* Upgrade acme to 0.18.x
+* Save account_key.json, even on failures
+* Upgrade acme to 0.19.x
 
 0.5.1
 +++++
