@@ -1096,6 +1096,22 @@ def save_validation(root, challb, validation):
         validation_file.write(validation)
 
 
+def remove_validation(root, challb):
+    """Remove validation from webroot.
+
+    Args:
+      root: Webroot path.
+      challb: `acme.messages.ChallengeBody` with `http-01` challenge.
+    """
+    path = os.path.join(root, challb.path[1:])
+    try:
+        logger.debug('Removing validation file at %s', path)
+        os.remove(path)
+    except OSError as error:
+        logger.error('Could not remove validation '
+                     'file at %s : %s', path, error)
+
+
 def sha256_of_uri_contents(uri, chunk_size=10):
     """Get SHA256 of URI contents.
 
@@ -1431,6 +1447,10 @@ def persist_new_data(args, existing_data):
         persist_data(args, existing_data, new_data=IOPlugin.Data(
             account_key=client.key, key=None, cert=None, chain=None))
         raise error
+    finally:
+        for name, auth in six.iteritems(authorizations):
+            challb = supported_challb(auth)
+            remove_validation(roots[name], challb)
 
 
 def revoke(args):

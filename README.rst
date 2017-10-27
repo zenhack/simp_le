@@ -113,6 +113,7 @@ represents the *next* (i.e. not yet released) version.
   spurrious warnings.
 * Improve argument sanity-checks and error messages.
 * Save account_key.json, even on failures
+* Clean temporary challenge files.
 * Upgrade acme to 0.19.x
 
 0.5.1
