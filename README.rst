@@ -109,6 +109,7 @@ represents the *next* (i.e. not yet released) version.
 0.6.0 (Upcoming)
 ++++++++++++++++
 
+* Drop official support for Python 3.3.
 * Disable self-verification; this was highly unreliable and resulted in
   spurrious warnings.
 * Improve argument sanity-checks and error messages.
