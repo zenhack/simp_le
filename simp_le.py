@@ -182,7 +182,7 @@ def gen_pkey(bits):
     Returns:
       Freshly generated private key.
     """
-    assert bits >= 1024  # XXX
+    assert bits >= 1024
     pkey = OpenSSL.crypto.PKey()
     pkey.generate_key(OpenSSL.crypto.TYPE_RSA, bits)
     return pkey
@@ -1058,11 +1058,11 @@ def compute_roots(vhosts, default_root):
             if match:
                 portno, _ = match.groups()
                 if 0 <= int(portno) < 2 ** 16:
-                    logger.warn("Your webroot path (%s) looks like it is "
-                                "a port number or starts with one; this "
-                                "should be a directory name/path. "
-                                "Continuing anyway, but this may not be what "
-                                "you intended...", root)
+                    logger.warning("Your webroot path (%s) looks like it is "
+                                   "a port number or starts with one; this "
+                                   "should be a directory name/path. "
+                                   "Continuing anyway, but this may not be "
+                                   "what you intended...", root)
         else:
             root = default_root
         roots[vhost.name] = root
