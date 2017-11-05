@@ -23,9 +23,17 @@ The generated files are saved inside the container to `/simp_le/certs`, mount a 
 To obtain a certificate and private key for both `example.com` and `www.example.com` (assuming both domains are resolving to the host IP and a webserver is already running on the host, serving files from `/path/to/webroot`):
 
 ```
-$ docker run --rm -v /path/to/webroot:/simp_le/www -v $PWD:/simp_le/certs zenhack/simp_le \
-    --email you@example.com -f account_key.json -f fullchain.pem -f key.pem \
-    -d example.com -d www.example.com --default_root /simp_le/www
+$ docker run --rm \
+    -v /path/to/webroot:/simp_le/www \
+    -v $PWD:/simp_le/certs \
+    zenhack/simp_le \
+    --email you@example.com \
+    -f account_key.json \
+    -f fullchain.pem \
+    -f key.pem \
+    -d example.com \
+    -d www.example.com \
+    --default_root /simp_le/www
 ```
 
 - `-v /path/to/webroot:/simp_le/www` bind mount the local path `/path/to/webroot` to `/simp_le/www` inside the container, which is in turn used as simp_le default webroot with `--default_root`
@@ -36,13 +44,26 @@ For more info run `$ docker run --rm zenhack/simp_le --help`.
 Example use with nginx container
 --------
 
-You can combine this container with `nginx` to quickly obtain certificates for your domains:
+You can combine this container with [nginx](https://hub.docker.com/_/nginx/) to quickly obtain certificates for your domains:
 
 ```
-$ docker run -d --name nginx -p "80:80" -v webroot:/usr/share/nginx/html nginx:alpine
-$ docker run --rm --volumes-from nginx -v $PWD:/simp_le/certs zenhack/simp_le \
-    -email you@example.com -f account_key.json -f fullchain.pem -f key.pem \
-    -d example.com -d www.example.com --default_root /usr/share/nginx/html
+$ docker run -d \
+    --name nginx \
+    -p "80:80" \
+    -v webroot:/usr/share/nginx/html \
+    nginx:alpine
+```
+```
+$ docker run --rm \
+    --volumes-from nginx \
+    -v $PWD:/simp_le/certs zenhack/simp_le \
+    --email you@example.com \
+    -f account_key.json \
+    -f fullchain.pem \
+    -f key.pem \
+    -d example.com \
+    -d www.example.com \
+    --default_root /usr/share/nginx/html
 ```
 
 Building the image from source
