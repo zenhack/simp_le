@@ -59,7 +59,7 @@ wait_for_boulder() {
 case $1 in
   lint_suite)
     pip install -e .
-    pip install pep8 pylint
+    pip install pycodestyle pylint
     ;;
   simp_le_suite)
     pip install -e .
