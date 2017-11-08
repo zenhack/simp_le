@@ -32,7 +32,7 @@ else:
     ])
 
 tests_require = [
-    'pep8',
+    'pycodestyle',
     'pylint',
 ]
 
