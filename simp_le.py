@@ -1618,9 +1618,10 @@ class IntegrationTests(unittest.TestCase):
     PORT = 5002
 
     @classmethod
-    def _run(cls, args):
-        logger.debug('Running main with the following args: %s', args)
-        return main(shlex.split(args))
+    def _run(cls, cmd):
+        args = ' '.join(cmd[1:])
+        logger.debug('Running simp_le with the following args: %s', args)
+        return subprocess.call(cmd)
 
     @classmethod
     @contextlib.contextmanager
@@ -1649,38 +1650,37 @@ class IntegrationTests(unittest.TestCase):
 
     def test_it(self):
         webroot = os.path.join(os.getcwd(), 'public_html')
-        args = ('--server %s --tos_sha256 %s -f account_key.json '
-                '-f key.pem -f full.pem -d le.wtf:%s' % (
-                    self.SERVER, self.TOS_SHA256, webroot))
+        cmd = ["simp_le", "-v", "--server", (self.SERVER), "--tos_sha256",
+               (self.TOS_SHA256), "-f", "account_key.json", "-f", "key.pem",
+               "-f", "full.pem"]
         files = ('account_key.json', 'key.pem', 'full.pem')
         with self._new_swd():
-            failing_webroot = os.getcwd()
-            self.assertEqual(EXIT_ERROR, self._run(
-                '--server %s --tos_sha256 %s -f account_key.json '
-                '-f key.pem -f full.pem -d le.wtf:%s' % (
-                    self.SERVER, self.TOS_SHA256, failing_webroot)))
+            webroot_fail_arg = ["-d", "le.wtf:%s" % os.getcwd()]
+            self.assertEqual(EXIT_ERROR, self._run(cmd + webroot_fail_arg))
             # Failed authorization should generate the account key anyway
             unchangeable_stats = self.get_stats(files[0])
 
-            self.assertEqual(EXIT_RENEWAL, self._run(args))
+            webroot_1_arg = ["-d", "le.wtf:%s" % webroot]
+            self.assertEqual(EXIT_RENEWAL, self._run(cmd + webroot_1_arg))
             # Account key should be kept from previous failed attempt
             self.assertEqual(unchangeable_stats, self.get_stats(files[0]))
             initial_stats = self.get_stats(*files)
 
-            self.assertEqual(EXIT_NO_RENEWAL, self._run(args))
+            self.assertEqual(EXIT_NO_RENEWAL, self._run(cmd + webroot_1_arg))
             # No renewal => no files should be touched
             # NB get_stats() would fail if file didn't exist
             self.assertEqual(initial_stats, self.get_stats(*files))
 
-            self.assertEqual(EXIT_REVOKE_OK, self._run(
-                '--server %s --revoke -f account_key.json -f full.pem' %
-                self.SERVER))
+            self.assertEqual(EXIT_REVOKE_OK, self._run([
+                "simp_le", "-v", "--server", (self.SERVER), "--revoke",
+                "-f", "account_key.json", "-f", "full.pem"]))
             # Revocation shouldn't touch any files
             self.assertEqual(initial_stats, self.get_stats(*files))
 
+            webroot_2_arg = ["-d", "le2.wtf:%s" % webroot]
             # Changing SANs should trigger "renewal"
-            self.assertEqual(
-                EXIT_RENEWAL, self._run('%s -d le2.wtf:%s' % (args, webroot)))
+            self.assertEqual(EXIT_RENEWAL,
+                             self._run(cmd + webroot_1_arg + webroot_2_arg))
             # but it shouldn't unnecessarily overwrite the account key (#67)
             self.assertEqual(unchangeable_stats, self.get_stats(files[0]))
 
