@@ -106,8 +106,8 @@ Below is a summary of changes introduced in each release. Any user-visible
 changes *must* be recorded here. Note that the topmost entry sometimes
 represents the *next* (i.e. not yet released) version.
 
-0.6.0 (Upcoming)
-++++++++++++++++
+0.6.0
++++++
 
 * Drop official support for Python 3.3.
 * Disable self-verification; this was highly unreliable and resulted in
