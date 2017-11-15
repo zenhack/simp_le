@@ -223,6 +223,20 @@ def gen_csr(pkey, domains, sig_hash='sha256'):
     return req
 
 
+def get_le_tos_hash(le_uri):
+    """Returns up to date Let's Encrypt ToS hash"""
+    try:
+        le_directory = requests.get(le_uri).json()
+    except requests.ConnectionError:
+        raise Error("Connection to %s failed.", le_uri)
+    except ValueError:
+        raise Error("Failed to decode JSON from %s", le_uri)
+
+    le_tos_uri = le_directory['meta']['terms-of-service']
+    le_tos_hash = sha256_of_uri_contents(le_tos_uri)
+    return le_tos_hash
+
+
 class ComparablePKey(object):  # pylint: disable=too-few-public-methods
     """Comparable key.
 
@@ -990,8 +1004,7 @@ def create_parser():
     )
     reg.add_argument(
         '--tos_sha256', help='SHA-256 hash of the contents of Terms Of '
-        'Service URI contents.', default='cc88d8d9517f490191401e7b54e9f'
-        'fd12a2b9082ec7a1d4cec6101f9f1647e7b', metavar='HASH',
+        'Service URI contents.', metavar='HASH',
     )
     reg.add_argument(
         '--email', help='Email address. CA is likely to use it to '
@@ -1120,7 +1133,11 @@ def sha256_of_uri_contents(uri, chunk_size=10):
     'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
     """
     h = hashlib.sha256()  # pylint: disable=invalid-name
-    response = requests.get(uri, stream=True)
+    try:
+        response = requests.get(uri, stream=True)
+    except requests.ConnectionError:
+        raise Error("Connection to %s failed.", uri)
+
     for chunk in response.iter_content(chunk_size):
         h.update(chunk)
     return h.hexdigest()
@@ -1516,6 +1533,10 @@ def main_with_exceptions(cli_args):
         logger.info('Certificates already exist and renewal is not '
                     'necessary, exiting with status code %d.', EXIT_NO_RENEWAL)
         return EXIT_NO_RENEWAL
+
+    if args.tos_sha256 is None:
+        logger.info("Retrieving Let's Encrypt latest Terms of Service.")
+        args.tos_sha256 = get_le_tos_hash(LE_PRODUCTION_URI)
 
     persist_new_data(args, existing_data)
     return EXIT_RENEWAL
