@@ -990,8 +990,8 @@ def create_parser():
     )
     reg.add_argument(
         '--tos_sha256', help='SHA-256 hash of the contents of Terms Of '
-        'Service URI contents.', default='6373439b9f29d67a5cd4d18cbc7f2'
-        '64809342dbf21cb2ba2fc7588df987a6221', metavar='HASH',
+        'Service URI contents.', default='cc88d8d9517f490191401e7b54e9f'
+        'fd12a2b9082ec7a1d4cec6101f9f1647e7b', metavar='HASH',
     )
     reg.add_argument(
         '--email', help='Email address. CA is likely to use it to '
