@@ -106,6 +106,13 @@ Below is a summary of changes introduced in each release. Any user-visible
 changes *must* be recorded here. Note that the topmost entry sometimes
 represents the *next* (i.e. not yet released) version.
 
+0.6.1
++++++
+
+* Update the hash for the letsencrypt TOS. The TOS changed on November 15th,
+  which broke previous releases. Future releases will not hard-code the hash,
+  which should avoid this sort of problem in the future.
+
 0.6.0
 +++++
 
