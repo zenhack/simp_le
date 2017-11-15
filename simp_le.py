@@ -998,8 +998,7 @@ def create_parser():
     )
     reg.add_argument(
         '--tos_sha256', help='SHA-256 hash of the contents of Terms Of '
-        'Service URI contents.', default=get_le_tos_hash(LE_PRODUCTION_URI),
-        metavar='HASH',
+        'Service URI contents.', metavar='HASH',
     )
     reg.add_argument(
         '--email', help='Email address. CA is likely to use it to '
@@ -1524,6 +1523,10 @@ def main_with_exceptions(cli_args):
         logger.info('Certificates already exist and renewal is not '
                     'necessary, exiting with status code %d.', EXIT_NO_RENEWAL)
         return EXIT_NO_RENEWAL
+
+    if args.tos_sha256 is None:
+        logger.info("Retrieving Let's Encrypt latest Terms of Service.")
+        args.tos_sha256 = get_le_tos_hash(LE_PRODUCTION_URI)
 
     persist_new_data(args, existing_data)
     return EXIT_RENEWAL
