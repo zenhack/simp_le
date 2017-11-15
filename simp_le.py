@@ -223,6 +223,14 @@ def gen_csr(pkey, domains, sig_hash='sha256'):
     return req
 
 
+def get_le_tos_hash(le_uri):
+    """Returns up to date Let's Encrypt ToS hash"""
+    le_directory = requests.get(le_uri).json()
+    le_tos_uri = le_directory['meta']['terms-of-service']
+    le_tos_hash = sha256_of_uri_contents(le_tos_uri)
+    return le_tos_hash
+
+
 class ComparablePKey(object):  # pylint: disable=too-few-public-methods
     """Comparable key.
 
@@ -990,8 +998,8 @@ def create_parser():
     )
     reg.add_argument(
         '--tos_sha256', help='SHA-256 hash of the contents of Terms Of '
-        'Service URI contents.', default='6373439b9f29d67a5cd4d18cbc7f2'
-        '64809342dbf21cb2ba2fc7588df987a6221', metavar='HASH',
+        'Service URI contents.', default=get_le_tos_hash(LE_PRODUCTION_URI),
+        metavar='HASH',
     )
     reg.add_argument(
         '--email', help='Email address. CA is likely to use it to '
