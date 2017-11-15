@@ -225,7 +225,13 @@ def gen_csr(pkey, domains, sig_hash='sha256'):
 
 def get_le_tos_hash(le_uri):
     """Returns up to date Let's Encrypt ToS hash"""
-    le_directory = requests.get(le_uri).json()
+    try:
+        le_directory = requests.get(le_uri).json()
+    except requests.ConnectionError:
+        raise Error("Connection to %s failed.", le_uri)
+    except ValueError:
+        raise Error("Failed to decode JSON from %s", le_uri)
+
     le_tos_uri = le_directory['meta']['terms-of-service']
     le_tos_hash = sha256_of_uri_contents(le_tos_uri)
     return le_tos_hash
@@ -1127,7 +1133,11 @@ def sha256_of_uri_contents(uri, chunk_size=10):
     'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
     """
     h = hashlib.sha256()  # pylint: disable=invalid-name
-    response = requests.get(uri, stream=True)
+    try:
+        response = requests.get(uri, stream=True)
+    except requests.ConnectionError:
+        raise Error("Connection to %s failed.", uri)
+
     for chunk in response.iter_content(chunk_size):
         h.update(chunk)
     return h.hexdigest()
