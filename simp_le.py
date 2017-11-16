@@ -1432,8 +1432,7 @@ def persist_new_data(args, existing_data):
     client = registered_client(args, existing_data.account_key)
 
     authorizations = dict(
-        (vhost.name, client.request_domain_challenges(
-            vhost.name, new_authzr_uri=client.directory.new_authz))
+        (vhost.name, client.request_domain_challenges(vhost.name))
         for vhost in args.vhosts
     )
     if any(supported_challb(auth) is None
