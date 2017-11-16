@@ -106,6 +106,12 @@ Below is a summary of changes introduced in each release. Any user-visible
 changes *must* be recorded here. Note that the topmost entry sometimes
 represents the *next* (i.e. not yet released) version.
 
+0.6.2
++++++
+
+* Implement the future-proofing mentioned in the 0.6.1 release notes. Future
+  TOS changes should not break simp_le >= 0.6.2
+
 0.6.1
 +++++
 
