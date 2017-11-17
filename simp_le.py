@@ -1414,10 +1414,11 @@ def get_certr(client, csr, authorizations):
                          "your webserver config. If a domain's DNS entry has "
                          "both A and AAAA fields set up, some CAs such as "
                          "Let's Encrypt will perform the challenge validation "
-                         "over IPv6. If you haven't setup correct CAA fields "
-                         "or if your DNS provider does not support CAA, "
-                         "validation attempts after september 8, 2017 will "
-                         "fail.  Failing authorizations: %s",
+                         "over IPv6. If your DNS provider does not answer "
+                         "correctly to CAA records request, Let's Encrypt "
+                         "won't issue a certificate for your domain (see "
+                         "https://letsencrypt.org/docs/caa/). Failing "
+                         "authorizations: %s",
                          ', '.join(authzr.uri for authzr in invalid))
 
         raise Error('Challenge validation has failed, see error log.')
