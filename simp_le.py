@@ -228,9 +228,9 @@ def get_le_tos_hash(le_uri):
     try:
         le_directory = requests.get(le_uri).json()
     except requests.ConnectionError:
-        raise Error("Connection to %s failed.", le_uri)
+        raise Error("Connection to %s failed." % le_uri)
     except ValueError:
-        raise Error("Failed to decode JSON from %s", le_uri)
+        raise Error("Failed to decode JSON from %s" % le_uri)
 
     le_tos_uri = le_directory['meta']['terms-of-service']
     le_tos_hash = sha256_of_uri_contents(le_tos_uri)
@@ -1136,7 +1136,7 @@ def sha256_of_uri_contents(uri, chunk_size=10):
     try:
         response = requests.get(uri, stream=True)
     except requests.ConnectionError:
-        raise Error("Connection to %s failed.", uri)
+        raise Error("Connection to %s failed." % uri)
 
     for chunk in response.iter_content(chunk_size):
         h.update(chunk)
