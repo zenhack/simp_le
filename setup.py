@@ -8,7 +8,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 readme = codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8').read()
 
 install_requires = [
-    'acme>=0.19,<0.20',
+    'acme>=0.20,<0.21',
     # Note: at the time of writing (9 Aug 2017), it is important that requests
     # come *before* cryptography, as otherwise pip fails to solve the
     # dependency graph correctly. See also:
