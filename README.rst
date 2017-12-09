@@ -106,6 +106,12 @@ Below is a summary of changes introduced in each release. Any user-visible
 changes *must* be recorded here. Note that the topmost entry sometimes
 represents the *next* (i.e. not yet released) version.
 
+0.7.0 (Upcoming)
+++++++++++++++++
+
+* Add some sanity checks for email syntax
+* Upgrade acme to 0.20.x
+
 0.6.2
 +++++
 
