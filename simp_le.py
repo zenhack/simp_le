@@ -1528,6 +1528,12 @@ def main_with_exceptions(cli_args):
         raise Error('You must set at least one -d/--vhost')
     check_plugins_persist_all(args.ioplugins)
 
+    if args.email is not None:
+        match = re.match(r'.+@[A-Za-z0-9._-]+', args.email)
+        if not match:
+            raise Error("The email address you provided (%s) does not appear"
+                        "to be valid." % args.email)
+
     existing_data = load_existing_data(args.ioplugins)
     if valid_existing_cert(existing_data.cert, args.vhosts, args.valid_min):
         logger.info('Certificates already exist and renewal is not '
@@ -1595,6 +1601,9 @@ class MainTest(UnitTestCase):
             # no root with multiple domains
             '-f account_key.json -f key.pem -f fullchain.pem '
             '-d example.com:public_html  -d www.example.com',
+            # invalid email
+            '-f account_key.json -f key.pem -f fullchain.pem '
+            '-d example.com:public_html --email @wrong.com',
         ]
         # missing plugin coverage
         test_args.extend(['-d example.com:public_html %s' % rest for rest in [
