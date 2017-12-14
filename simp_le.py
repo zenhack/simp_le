@@ -439,7 +439,12 @@ class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
 
     def load_key(self, data):
         """Load private key."""
-        return ComparablePKey(OpenSSL.crypto.load_privatekey(self.typ, data))
+        try:
+            key = OpenSSL.crypto.load_privatekey(self.typ, data)
+        except OpenSSL.crypto.Error:
+            raise Error("simp_le couldn't load a key from %s; "
+                        "the file might be empty or corrupt." % self.path)
+        return ComparablePKey(key)
 
     def dump_key(self, data):
         """Dump private key."""
@@ -447,8 +452,12 @@ class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
 
     def load_cert(self, data):
         """Load certificate."""
-        return jose.ComparableX509(OpenSSL.crypto.load_certificate(
-            self.typ, data))
+        try:
+            cert = OpenSSL.crypto.load_certificate(self.typ, data)
+        except OpenSSL.crypto.Error:
+            raise Error("simp_le couldn't load a certificate from %s; "
+                        "the file might be empty or corrupt." % self.path)
+        return jose.ComparableX509(cert)
 
     def dump_cert(self, data):
         """Dump certificate."""
