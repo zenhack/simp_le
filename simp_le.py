@@ -459,11 +459,16 @@ class AccountKey(FileIOPlugin, JWKIOPlugin):
         return self.Data(account_key=True, key=False, cert=False, chain=False)
 
     def load_from_content(self, content):
-        return self.Data(account_key=self.load_jwk(content), key=None,
-                         cert=None, chain=None)
+        return self.Data(
+            account_key=self.load_jwk(content),
+            key=None,
+            cert=None,
+            chain=None,
+        )
 
     def save(self, data):
-        return self.save_to_file(self.dump_jwk(data.account_key))
+        key = self.dump_jwk(data.account_key)
+        return self.save_to_file(key)
 
 
 @IOPlugin.register(path='key.der', typ=OpenSSL.crypto.FILETYPE_ASN1)
@@ -475,11 +480,16 @@ class KeyFile(FileIOPlugin, OpenSSLIOPlugin):
         return self.Data(account_key=False, key=True, cert=False, chain=False)
 
     def load_from_content(self, content):
-        return self.Data(account_key=None, key=self.load_key(content),
-                         cert=None, chain=None)
+        return self.Data(
+            account_key=None,
+            key=self.load_key(content),
+            cert=None,
+            chain=None,
+        )
 
     def save(self, data):
-        return self.save_to_file(self.dump_key(data.key))
+        key = self.dump_key(data.key)
+        return self.save_to_file(key)
 
 
 @IOPlugin.register(path='cert.der', typ=OpenSSL.crypto.FILETYPE_ASN1)
@@ -491,11 +501,16 @@ class CertFile(FileIOPlugin, OpenSSLIOPlugin):
         return self.Data(account_key=False, key=False, cert=True, chain=False)
 
     def load_from_content(self, content):
-        return self.Data(account_key=None, key=None,
-                         cert=self.load_cert(content), chain=None)
+        return self.Data(
+            account_key=None,
+            key=None,
+            cert=self.load_cert(content),
+            chain=None,
+        )
 
     def save(self, data):
-        return self.save_to_file(self.dump_cert(data.cert))
+        cert = self.dump_cert(data.cert)
+        return self.save_to_file(cert)
 
 
 @IOPlugin.register(path='chain.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
@@ -506,35 +521,39 @@ class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
         return self.Data(account_key=False, key=False, cert=False, chain=True)
 
     def load_from_content(self, content):
-        chain = [self.load_cert(cert_data)
-                 for cert_data in split_pems(content)]
-        return self.Data(account_key=None, key=None, cert=None, chain=chain)
+        pems = list(split_pems(content))
+        return self.Data(
+            account_key=None,
+            key=None,
+            cert=None,
+            chain=[self.load_cert(cert) for cert in pems[0:]],
+        )
 
     def save(self, data):
-        return self.save_to_file(_PEMS_SEP.join(
-            self.dump_cert(chain_cert) for chain_cert in data.chain))
+        pems = [self.dump_cert(cert) for cert in data.chain]
+        return self.save_to_file(_PEMS_SEP.join(pems))
 
 
 @IOPlugin.register(path='fullchain.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
-class FullChainFile(ChainFile):
+class FullChainFile(FileIOPlugin, OpenSSLIOPlugin):
     """Full chain file plugin."""
 
     def persisted(self):
         return self.Data(account_key=False, key=False, cert=True, chain=True)
 
-    def load(self):
-        data = super(FullChainFile, self).load()
-        if data.chain is None:
-            cert, chain = None, None
-        else:
-            cert, chain = data.chain[0], data.chain[1:]
-        return self.Data(account_key=data.account_key, key=data.key,
-                         cert=cert, chain=chain)
+    def load_from_content(self, content):
+        pems = list(split_pems(content))
+        return self.Data(
+            account_key=None,
+            key=None,
+            cert=self.load_cert(pems[0]),
+            chain=[self.load_cert(cert) for cert in pems[1:]],
+        )
 
     def save(self, data):
-        return super(FullChainFile, self).save(self.Data(
-            account_key=data.account_key, key=data.key,
-            cert=None, chain=([data.cert] + data.chain)))
+        pems = [self.dump_cert(data.cert)]
+        pems.extend(self.dump_cert(cert) for cert in data.chain)
+        return self.save_to_file(_PEMS_SEP.join(pems))
 
 
 @IOPlugin.register(path='full.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
@@ -545,18 +564,18 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
         return self.Data(account_key=False, key=True, cert=True, chain=True)
 
     def load_from_content(self, content):
-        pems = split_pems(content)
+        pems = list(split_pems(content))
         return self.Data(
             account_key=None,
-            key=self.load_key(next(pems)),
-            cert=self.load_cert(next(pems)),
-            chain=[self.load_cert(cert) for cert in pems],
+            key=self.load_key(pems[0]),
+            cert=self.load_cert(pems[1]),
+            chain=[self.load_cert(cert) for cert in pems[2:]],
         )
 
     def save(self, data):
         pems = [self.dump_key(data.key), self.dump_cert(data.cert)]
         pems.extend(self.dump_cert(cert) for cert in data.chain)
-        self.save_to_file(_PEMS_SEP.join(pems))
+        return self.save_to_file(_PEMS_SEP.join(pems))
 
 
 def load_pem_jwk(data):
