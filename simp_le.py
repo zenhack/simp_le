@@ -82,71 +82,6 @@ class Error(Exception):
     """simp_le error."""
 
 
-class UnitTestCase(unittest.TestCase):
-    """simp_le unit test case."""
-
-    class AssertRaisesContext(object):
-        """Context for assert_raises."""
-        # pylint: disable=too-few-public-methods
-
-        def __init__(self):
-            self.error = None
-
-    @contextlib.contextmanager
-    def assert_raises(self, exc):
-        """Assert raises context manager."""
-        context = self.AssertRaisesContext()
-        try:
-            yield context
-        except exc as error:
-            context.error = error
-        else:
-            self.fail('Expected exception (%s) not raised' % exc)
-
-    def assert_raises_regexp(self, exc, regexp, func, *args, **kwargs):
-        """Assert raises that tests exception message against regexp."""
-        with self.assert_raises(exc) as context:
-            func(*args, **kwargs)
-        msg = str(context.error)
-        self.assertTrue(re.match(regexp, msg) is not None,
-                        "Exception message (%s) doesn't match "
-                        "regexp (%s)" % (msg, regexp))
-
-    def assert_raises_error(self, *args, **kwargs):
-        """Assert raises simp_le error with given message."""
-        self.assert_raises_regexp(Error, *args, **kwargs)
-
-    @staticmethod
-    def check_logs(level, pattern, func):
-        """Check whether func logs a message matching pattern.
-
-        ``pattern`` is a regular expression to match the logs against.
-        ``func`` is the function to call.
-        ``level`` is the logging level to set during the function call.
-
-        Returns True if there is a match, False otherwise.
-        """
-        log_msgs = []
-
-        class TestHandler(logging.Handler):
-            """Log handler that saves logs in ``log_msgs``."""
-
-            def emit(self, record):
-                log_msgs.append(record.msg % record.args)
-
-        handler = TestHandler(level=level)
-        logger.addHandler(handler)
-
-        try:
-            func()
-            for msg in log_msgs:
-                if re.match(pattern, msg) is not None:
-                    return True
-            return False
-        finally:
-            logger.removeHandler(handler)
-
-
 _PEM_RE_LABELCHAR = r'[\x21-\x2c\x2e-\x7e]'
 _PEM_RE = re.compile(
     (r"""
@@ -483,25 +418,6 @@ class JWKIOPlugin(IOPlugin):  # pylint: disable=abstract-method
         return jwk.json_dumps()
 
 
-@IOPlugin.register(path='account_key.json')
-class AccountKey(FileIOPlugin, JWKIOPlugin):
-    """Account key IO Plugin using JWS."""
-
-    # this is not a binary file
-    READ_MODE = 'r'
-    WRITE_MODE = 'w'
-
-    def persisted(self):
-        return self.Data(account_key=True, key=False, cert=False, chain=False)
-
-    def load_from_content(self, content):
-        return self.Data(account_key=self.load_jwk(content), key=None,
-                         cert=None, chain=None)
-
-    def save(self, data):
-        return self.save_to_file(self.dump_jwk(data.account_key))
-
-
 class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
     """IOPlugin that uses pyOpenSSL.
 
@@ -529,6 +445,118 @@ class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
     def dump_cert(self, data):
         """Dump certificate."""
         return OpenSSL.crypto.dump_certificate(self.typ, data.wrapped).strip()
+
+
+@IOPlugin.register(path='account_key.json')
+class AccountKey(FileIOPlugin, JWKIOPlugin):
+    """Account key IO Plugin using JWS."""
+
+    # this is not a binary file
+    READ_MODE = 'r'
+    WRITE_MODE = 'w'
+
+    def persisted(self):
+        return self.Data(account_key=True, key=False, cert=False, chain=False)
+
+    def load_from_content(self, content):
+        return self.Data(account_key=self.load_jwk(content), key=None,
+                         cert=None, chain=None)
+
+    def save(self, data):
+        return self.save_to_file(self.dump_jwk(data.account_key))
+
+
+@IOPlugin.register(path='key.der', typ=OpenSSL.crypto.FILETYPE_ASN1)
+@IOPlugin.register(path='key.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
+class KeyFile(FileIOPlugin, OpenSSLIOPlugin):
+    """Private key file plugin."""
+
+    def persisted(self):
+        return self.Data(account_key=False, key=True, cert=False, chain=False)
+
+    def load_from_content(self, content):
+        return self.Data(account_key=None, key=self.load_key(content),
+                         cert=None, chain=None)
+
+    def save(self, data):
+        return self.save_to_file(self.dump_key(data.key))
+
+
+@IOPlugin.register(path='cert.der', typ=OpenSSL.crypto.FILETYPE_ASN1)
+@IOPlugin.register(path='cert.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
+class CertFile(FileIOPlugin, OpenSSLIOPlugin):
+    """Certificate file plugin."""
+
+    def persisted(self):
+        return self.Data(account_key=False, key=False, cert=True, chain=False)
+
+    def load_from_content(self, content):
+        return self.Data(account_key=None, key=None,
+                         cert=self.load_cert(content), chain=None)
+
+    def save(self, data):
+        return self.save_to_file(self.dump_cert(data.cert))
+
+
+@IOPlugin.register(path='chain.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
+class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
+    """Certificate chain plugin."""
+
+    def persisted(self):
+        return self.Data(account_key=False, key=False, cert=False, chain=True)
+
+    def load_from_content(self, content):
+        chain = [self.load_cert(cert_data)
+                 for cert_data in split_pems(content)]
+        return self.Data(account_key=None, key=None, cert=None, chain=chain)
+
+    def save(self, data):
+        return self.save_to_file(_PEMS_SEP.join(
+            self.dump_cert(chain_cert) for chain_cert in data.chain))
+
+
+@IOPlugin.register(path='fullchain.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
+class FullChainFile(ChainFile):
+    """Full chain file plugin."""
+
+    def persisted(self):
+        return self.Data(account_key=False, key=False, cert=True, chain=True)
+
+    def load(self):
+        data = super(FullChainFile, self).load()
+        if data.chain is None:
+            cert, chain = None, None
+        else:
+            cert, chain = data.chain[0], data.chain[1:]
+        return self.Data(account_key=data.account_key, key=data.key,
+                         cert=cert, chain=chain)
+
+    def save(self, data):
+        return super(FullChainFile, self).save(self.Data(
+            account_key=data.account_key, key=data.key,
+            cert=None, chain=([data.cert] + data.chain)))
+
+
+@IOPlugin.register(path='full.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
+class FullFile(FileIOPlugin, OpenSSLIOPlugin):
+    """Private key, certificate and chain plugin."""
+
+    def persisted(self):
+        return self.Data(account_key=False, key=True, cert=True, chain=True)
+
+    def load_from_content(self, content):
+        pems = split_pems(content)
+        return self.Data(
+            account_key=None,
+            key=self.load_key(next(pems)),
+            cert=self.load_cert(next(pems)),
+            chain=[self.load_cert(cert) for cert in pems],
+        )
+
+    def save(self, data):
+        pems = [self.dump_key(data.key), self.dump_cert(data.cert)]
+        pems.extend(self.dump_cert(cert) for cert in data.chain)
+        self.save_to_file(_PEMS_SEP.join(pems))
 
 
 def load_pem_jwk(data):
@@ -652,6 +680,71 @@ class ExternalIOPlugin(OpenSSLIOPlugin):
                         proc.returncode)
 
 
+class UnitTestCase(unittest.TestCase):
+    """simp_le unit test case."""
+
+    class AssertRaisesContext(object):
+        """Context for assert_raises."""
+        # pylint: disable=too-few-public-methods
+
+        def __init__(self):
+            self.error = None
+
+    @contextlib.contextmanager
+    def assert_raises(self, exc):
+        """Assert raises context manager."""
+        context = self.AssertRaisesContext()
+        try:
+            yield context
+        except exc as error:
+            context.error = error
+        else:
+            self.fail('Expected exception (%s) not raised' % exc)
+
+    def assert_raises_regexp(self, exc, regexp, func, *args, **kwargs):
+        """Assert raises that tests exception message against regexp."""
+        with self.assert_raises(exc) as context:
+            func(*args, **kwargs)
+        msg = str(context.error)
+        self.assertTrue(re.match(regexp, msg) is not None,
+                        "Exception message (%s) doesn't match "
+                        "regexp (%s)" % (msg, regexp))
+
+    def assert_raises_error(self, *args, **kwargs):
+        """Assert raises simp_le error with given message."""
+        self.assert_raises_regexp(Error, *args, **kwargs)
+
+    @staticmethod
+    def check_logs(level, pattern, func):
+        """Check whether func logs a message matching pattern.
+
+        ``pattern`` is a regular expression to match the logs against.
+        ``func`` is the function to call.
+        ``level`` is the logging level to set during the function call.
+
+        Returns True if there is a match, False otherwise.
+        """
+        log_msgs = []
+
+        class TestHandler(logging.Handler):
+            """Log handler that saves logs in ``log_msgs``."""
+
+            def emit(self, record):
+                log_msgs.append(record.msg % record.args)
+
+        handler = TestHandler(level=level)
+        logger.addHandler(handler)
+
+        try:
+            func()
+            for msg in log_msgs:
+                if re.match(pattern, msg) is not None:
+                    return True
+            return False
+        finally:
+            logger.removeHandler(handler)
+
+
 class PluginIOTestMixin(object):
     """Common plugins tests."""
     # this is a test suite | pylint: disable=missing-docstring
@@ -700,45 +793,34 @@ class FileIOPluginTestMixin(PluginIOTestMixin):
               zip(self.plugin.persisted(), self.all_data))))
 
 
-class PortNumWarningTest(UnitTestCase):
-    """Tests relating to the port number warning."""
+class KeyFileTest(FileIOPluginTestMixin, UnitTestCase):
+    """Tests for KeyFile."""
+    # this is a test suite | pylint: disable=missing-docstring
+    PLUGIN_CLS = KeyFile
 
-    def _check_warn(self, should_log, path):
-        """test whether the supplied path triggers the port number warning.
 
-        ``should_log`` is a boolean indicating whether or not we expect the
-        path to trigger a warning.
-        ``path`` is the webroot path to check.
+class CertFileTest(FileIOPluginTestMixin, UnitTestCase):
+    """Tests for CertFile."""
+    # this is a test suite | pylint: disable=missing-docstring
+    PLUGIN_CLS = CertFile
 
-        If ``should_log`` is inconsistent with the behavior of
-        ``compute_roots`` given ``path``, the test fails.
-        """
-        return self.assertEqual(
-            self.check_logs(
-                logging.WARN,
-                '.*looks like it is a port number.*',
-                lambda: compute_roots([
-                    Vhost('example.com', path),
-                ], 'webroot')
-            ),
-            should_log,
-        )
 
-    def test_warn_port(self):
-        """A bare port number triggers the warning."""
-        self._check_warn(True, '8000')
+class ChainFileTest(FileIOPluginTestMixin, UnitTestCase):
+    """Tests for ChainFile."""
+    # this is a test suite | pylint: disable=missing-docstring
+    PLUGIN_CLS = ChainFile
 
-    def test_warn_port_path(self):
-        """``port_no:path`` triggers the warning."""
-        self._check_warn(True, '8000:/webroot')
 
-    def test_no_warn_path(self):
-        """A bare path doesn't trigger the warning."""
-        self._check_warn(False, '/my-web-root')
+class FullChainFileTest(FileIOPluginTestMixin, UnitTestCase):
+    """Tests for FullChainFile."""
+    # this is a test suite | pylint: disable=missing-docstring
+    PLUGIN_CLS = FullChainFile
 
-    def test_no_warn_bigport(self):
-        """A number too big to be a port doesn't trigger the warning."""
-        self._check_warn(False, '66000')
+
+class FullFileTest(FileIOPluginTestMixin, UnitTestCase):
+    """Tests for FullFile."""
+    # this is a test suite | pylint: disable=missing-docstring
+    PLUGIN_CLS = FullFile
 
 
 class ExternalIOPluginTest(PluginIOTestMixin, UnitTestCase):
@@ -792,127 +874,45 @@ esac
         self.assertEqual(self.all_data, self.plugin.load())
 
 
-@IOPlugin.register(path='chain.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
-class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
-    """Certificate chain plugin."""
+class PortNumWarningTest(UnitTestCase):
+    """Tests relating to the port number warning."""
 
-    def persisted(self):
-        return self.Data(account_key=False, key=False, cert=False, chain=True)
+    def _check_warn(self, should_log, path):
+        """test whether the supplied path triggers the port number warning.
 
-    def load_from_content(self, content):
-        chain = [self.load_cert(cert_data)
-                 for cert_data in split_pems(content)]
-        return self.Data(account_key=None, key=None, cert=None, chain=chain)
+        ``should_log`` is a boolean indicating whether or not we expect the
+        path to trigger a warning.
+        ``path`` is the webroot path to check.
 
-    def save(self, data):
-        return self.save_to_file(_PEMS_SEP.join(
-            self.dump_cert(chain_cert) for chain_cert in data.chain))
-
-
-class ChainFileTest(FileIOPluginTestMixin, UnitTestCase):
-    """Tests for ChainFile."""
-    # this is a test suite | pylint: disable=missing-docstring
-    PLUGIN_CLS = ChainFile
-
-
-@IOPlugin.register(path='fullchain.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
-class FullChainFile(ChainFile):
-    """Full chain file plugin."""
-
-    def persisted(self):
-        return self.Data(account_key=False, key=False, cert=True, chain=True)
-
-    def load(self):
-        data = super(FullChainFile, self).load()
-        if data.chain is None:
-            cert, chain = None, None
-        else:
-            cert, chain = data.chain[0], data.chain[1:]
-        return self.Data(account_key=data.account_key, key=data.key,
-                         cert=cert, chain=chain)
-
-    def save(self, data):
-        return super(FullChainFile, self).save(self.Data(
-            account_key=data.account_key, key=data.key,
-            cert=None, chain=([data.cert] + data.chain)))
-
-
-class FullChainFileTest(FileIOPluginTestMixin, UnitTestCase):
-    """Tests for FullChainFile."""
-    # this is a test suite | pylint: disable=missing-docstring
-    PLUGIN_CLS = FullChainFile
-
-
-@IOPlugin.register(path='key.der', typ=OpenSSL.crypto.FILETYPE_ASN1)
-@IOPlugin.register(path='key.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
-class KeyFile(FileIOPlugin, OpenSSLIOPlugin):
-    """Private key file plugin."""
-
-    def persisted(self):
-        return self.Data(account_key=False, key=True, cert=False, chain=False)
-
-    def load_from_content(self, content):
-        return self.Data(account_key=None, key=self.load_key(content),
-                         cert=None, chain=None)
-
-    def save(self, data):
-        return self.save_to_file(self.dump_key(data.key))
-
-
-class KeyFileTest(FileIOPluginTestMixin, UnitTestCase):
-    """Tests for KeyFile."""
-    # this is a test suite | pylint: disable=missing-docstring
-    PLUGIN_CLS = KeyFile
-
-
-@IOPlugin.register(path='cert.der', typ=OpenSSL.crypto.FILETYPE_ASN1)
-@IOPlugin.register(path='cert.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
-class CertFile(FileIOPlugin, OpenSSLIOPlugin):
-    """Certificate file plugin."""
-
-    def persisted(self):
-        return self.Data(account_key=False, key=False, cert=True, chain=False)
-
-    def load_from_content(self, content):
-        return self.Data(account_key=None, key=None,
-                         cert=self.load_cert(content), chain=None)
-
-    def save(self, data):
-        return self.save_to_file(self.dump_cert(data.cert))
-
-
-class CertFileTest(FileIOPluginTestMixin, UnitTestCase):
-    """Tests for CertFile."""
-    # this is a test suite | pylint: disable=missing-docstring
-    PLUGIN_CLS = CertFile
-
-
-@IOPlugin.register(path='full.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
-class FullFile(FileIOPlugin, OpenSSLIOPlugin):
-    """Private key, certificate and chain plugin."""
-
-    def persisted(self):
-        return self.Data(account_key=False, key=True, cert=True, chain=True)
-
-    def load_from_content(self, content):
-        pems = split_pems(content)
-        return self.Data(
-            account_key=None,
-            key=self.load_key(next(pems)),
-            cert=self.load_cert(next(pems)),
-            chain=[self.load_cert(cert) for cert in pems],
+        If ``should_log`` is inconsistent with the behavior of
+        ``compute_roots`` given ``path``, the test fails.
+        """
+        return self.assertEqual(
+            self.check_logs(
+                logging.WARN,
+                '.*looks like it is a port number.*',
+                lambda: compute_roots([
+                    Vhost('example.com', path),
+                ], 'webroot')
+            ),
+            should_log,
         )
 
-    def save(self, data):
-        pems = [self.dump_key(data.key), self.dump_cert(data.cert)]
-        pems.extend(self.dump_cert(cert) for cert in data.chain)
-        self.save_to_file(_PEMS_SEP.join(pems))
+    def test_warn_port(self):
+        """A bare port number triggers the warning."""
+        self._check_warn(True, '8000')
 
+    def test_warn_port_path(self):
+        """``port_no:path`` triggers the warning."""
+        self._check_warn(True, '8000:/webroot')
 
-class FullFileTest(FileIOPluginTestMixin, UnitTestCase):
-    """Tests for FullFile."""
-    # this is a test suite | pylint: disable=missing-docstring
-    PLUGIN_CLS = FullFile
+    def test_no_warn_path(self):
+        """A bare path doesn't trigger the warning."""
+        self._check_warn(False, '/my-web-root')
+
+    def test_no_warn_bigport(self):
+        """A number too big to be a port doesn't trigger the warning."""
+        self._check_warn(False, '66000')
 
 
 def create_parser():
