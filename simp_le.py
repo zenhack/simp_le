@@ -140,9 +140,9 @@ def get_le_tos_hash(le_uri):
     try:
         le_directory = requests.get(le_uri).json()
     except requests.ConnectionError:
-        raise Error("Connection to %s failed." % le_uri)
+        raise Error("Connection to {0} failed.".format(le_uri))
     except ValueError:
-        raise Error("Failed to decode JSON from %s" % le_uri)
+        raise Error("Failed to decode JSON from {0}".format(le_uri))
 
     le_tos_uri = le_directory['meta']['terms-of-service']
     le_tos_hash = sha256_of_uri_contents(le_tos_uri)
@@ -378,7 +378,7 @@ class FileIOPlugin(IOPlugin):
                 persist_file.write(data)
         except OSError as error:
             logging.exception(error)
-            raise Error('Error when saving %s', self.path)
+            raise Error('Error when saving {0}'.format(self.path))
 
 
 class JWKIOPlugin(IOPlugin):  # pylint: disable=abstract-method
@@ -442,8 +442,8 @@ class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
         try:
             key = OpenSSL.crypto.load_privatekey(self.typ, data)
         except OpenSSL.crypto.Error:
-            raise Error("simp_le couldn't load a key from %s; "
-                        "the file might be empty or corrupt." % self.path)
+            raise Error("simp_le couldn't load a key from {0}; the "
+                        "file might be empty or corrupt.".format(self.path))
         return ComparablePKey(key)
 
     def dump_key(self, data):
@@ -455,8 +455,8 @@ class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
         try:
             cert = OpenSSL.crypto.load_certificate(self.typ, data)
         except OpenSSL.crypto.Error:
-            raise Error("simp_le couldn't load a certificate from %s; "
-                        "the file might be empty or corrupt." % self.path)
+            raise Error("simp_le couldn't load a certificate from {0}; the "
+                        "file might be empty or corrupt.".format(self.path))
         return jose.ComparableX509(cert)
 
     def dump_cert(self, data):
@@ -540,8 +540,8 @@ class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
     def load_from_content(self, content):
         pems = list(self.split_pems(content))
         if not pems:
-            raise Error("No PEM encoded message was found in %s; "
-                        "at least 1 was expected." % self.path)
+            raise Error("No PEM encoded message was found in {0}; "
+                        "at least 1 was expected.".format(self.path))
         return self.Data(
             account_key=None,
             key=None,
@@ -564,9 +564,9 @@ class FullChainFile(FileIOPlugin, OpenSSLIOPlugin):
     def load_from_content(self, content):
         pems = list(self.split_pems(content))
         if len(pems) < 2:
-            raise Error("Not enough PEM encoded messages were found in %s; "
-                        "at least 2 were expected, found %i."
-                        % (self.path, len(pems)))
+            raise Error("Not enough PEM encoded messages were found in {0}; "
+                        "at least 2 were expected, found {1}."
+                        .format(self.path, len(pems)))
         return self.Data(
             account_key=None,
             key=None,
@@ -590,9 +590,9 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
     def load_from_content(self, content):
         pems = list(self.split_pems(content))
         if len(pems) < 3:
-            raise Error("Not enough PEM encoded messages were found in %s; "
-                        "at least 3 were expected, found %i."
-                        % (self.path, len(pems)))
+            raise Error("Not enough PEM encoded messages were found in {0}; "
+                        "at least 3 were expected, found {1}."
+                        .format(self.path, len(pems)))
         return self.Data(
             account_key=None,
             key=self.load_key(pems[0]),
@@ -641,14 +641,14 @@ class ExternalIOPlugin(JWKIOPlugin, OpenSSLIOPlugin):
                 [self.script, command], stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE)
         except (OSError, subprocess.CalledProcessError) as error:
-            raise Error('Failed to execute external script: %s' % error)
+            raise Error('Failed to execute external script: {0}'.format(error))
 
         stdout, stderr = proc.communicate()
         if stderr is not None:
             logger.error('STDERR: %s', stderr)
         if proc.wait():
-            raise Error('External script exited with non-zero code: %d' %
-                        proc.returncode)
+            raise Error('External script exited with non-zero code: {0}'
+                        .format(proc.returncode))
 
         # Do NOT log `stdout` as it might contain secret material (in
         # case key is persisted)
@@ -708,8 +708,8 @@ class ExternalIOPlugin(JWKIOPlugin, OpenSSLIOPlugin):
         if stderr is not None:
             logger.error('STDERR: %s', stderr)
         if proc.wait():
-            raise Error('External script exited with non-zero code: %d' %
-                        proc.returncode)
+            raise Error('External script exited with non-zero code: {0}'
+                        .format(proc.returncode))
 
 
 class UnitTestCase(unittest.TestCase):
@@ -1146,9 +1146,9 @@ def compute_roots(vhosts, default_root):
     empty_roots = dict((name, root)
                        for name, root in six.iteritems(roots) if root is None)
     if empty_roots:
-        raise Error('Root for the following host(s) were not specified: %s. '
+        raise Error('Root for the following host(s) were not specified: {0}. '
                     'Try --default_root or use -d example.com:/var/www/html '
-                    'syntax' % ', '.join(empty_roots))
+                    'syntax'.format(', '.join(empty_roots)))
     return roots
 
 
@@ -1199,7 +1199,7 @@ def sha256_of_uri_contents(uri, chunk_size=10):
     try:
         response = requests.get(uri, stream=True)
     except requests.ConnectionError:
-        raise Error("Connection to %s failed." % uri)
+        raise Error("Connection to {0} failed.".format(uri))
 
     for chunk in response.iter_content(chunk_size):
         h.update(chunk)
@@ -1326,7 +1326,7 @@ def check_plugins_persist_all(ioplugins):
         if not persist])
     if not_persisted:
         raise Error('Selected IO plugins do not cover the following '
-                    'components: %s.' % ', '.join(not_persisted))
+                    'components: {0}.'.format(', '.join(not_persisted)))
 
 
 def load_existing_data(ioplugins):
@@ -1350,7 +1350,7 @@ def load_existing_data(ioplugins):
         """
         if first is not None and second is not None and first != second:
             raise Error('Some plugins returned conflicting data for '
-                        'the "%s" component' % field)
+                        'the "{0}" component'.format(field))
         return first or second
 
     all_existing = IOPlugin.EMPTY_DATA
@@ -1443,7 +1443,7 @@ def registered_client(args, existing_account_key):
             tos_hash = sha256_of_uri_contents(regr.terms_of_service)
             logger.debug('TOS hash: %s', tos_hash)
             if args.tos_sha256 != tos_hash:
-                raise Error('TOS hash mismatch. Found: %s.' % tos_hash)
+                raise Error('TOS hash mismatch. Found: {0}.'.format(tos_hash))
             client.agree_to_tos(regr)
 
     return client
@@ -1594,8 +1594,8 @@ def main_with_exceptions(cli_args):
     if args.email is not None:
         match = re.match(r'.+@[A-Za-z0-9._-]+', args.email)
         if not match:
-            raise Error("The email address you provided (%s) does not appear"
-                        "to be valid." % args.email)
+            raise Error("The email address you provided ({0}) does not appear"
+                        "to be valid.".format(args.email))
 
     existing_data = load_existing_data(args.ioplugins)
     if valid_existing_cert(existing_data.cert, args.vhosts, args.valid_min):
