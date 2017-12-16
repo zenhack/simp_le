@@ -390,9 +390,24 @@ class JWKIOPlugin(IOPlugin):  # pylint: disable=abstract-method
         return jose.JWKRSA.json_loads(data)
 
     @classmethod
+    def load_pem_jwk(cls, data):
+        """Load JWK encoded as PEM."""
+        return jose.JWKRSA(key=serialization.load_pem_private_key(
+            data, password=None, backend=default_backend()))
+
+    @classmethod
     def dump_jwk(cls, jwk):
         """Dump JWK."""
         return jwk.json_dumps()
+
+    @classmethod
+    def dump_pem_jwk(cls, data):
+        """Dump JWK as PEM."""
+        return data.key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).strip()
 
 
 class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
@@ -571,23 +586,8 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
         return self.save_to_file(self._PEMS_SEP.join(pems))
 
 
-def load_pem_jwk(data):
-    """Load JWK encoded as PEM."""
-    return jose.JWKRSA(key=serialization.load_pem_private_key(
-        data, password=None, backend=default_backend()))
-
-
-def dump_pem_jwk(data):
-    """Dump JWK as PEM."""
-    return data.key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption(),
-    ).strip()
-
-
 @IOPlugin.register(path='external.sh', typ=OpenSSL.crypto.FILETYPE_PEM)
-class ExternalIOPlugin(OpenSSLIOPlugin):
+class ExternalIOPlugin(JWKIOPlugin, OpenSSLIOPlugin):
     """External IO Plugin.
 
     This plugin executes script that complies with the
@@ -651,7 +651,7 @@ class ExternalIOPlugin(OpenSSLIOPlugin):
             return self.EMPTY_DATA
         persisted = self.persisted()
 
-        account_key = load_pem_jwk(
+        account_key = self.load_pem_jwk(
             pems.pop(0)) if persisted.account_key else None
         key = self.load_key(pems.pop(0)) if persisted.key else None
         cert = self.load_cert(pems.pop(0)) if persisted.cert else None
@@ -665,7 +665,7 @@ class ExternalIOPlugin(OpenSSLIOPlugin):
         persisted = self.persisted()
         output = []
         if persisted.account_key:
-            output.append(dump_pem_jwk(data.account_key))
+            output.append(self.dump_pem_jwk(data.account_key))
         if persisted.key:
             output.append(self.dump_key(data.key))
         if persisted.cert:
