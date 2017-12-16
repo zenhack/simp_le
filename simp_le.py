@@ -539,6 +539,9 @@ class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
 
     def load_from_content(self, content):
         pems = list(self.split_pems(content))
+        if not pems:
+            raise Error("No PEM encoded message was found in %s; "
+                        "at least 1 was expected." % self.path)
         return self.Data(
             account_key=None,
             key=None,
@@ -560,6 +563,10 @@ class FullChainFile(FileIOPlugin, OpenSSLIOPlugin):
 
     def load_from_content(self, content):
         pems = list(self.split_pems(content))
+        if len(pems) < 2:
+            raise Error("Not enough PEM encoded messages were found in %s; "
+                        "at least 2 were expected, found %i."
+                        % (self.path, len(pems)))
         return self.Data(
             account_key=None,
             key=None,
@@ -582,6 +589,10 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
 
     def load_from_content(self, content):
         pems = list(self.split_pems(content))
+        if len(pems) < 3:
+            raise Error("Not enough PEM encoded messages were found in %s; "
+                        "at least 3 were expected, found %i."
+                        % (self.path, len(pems)))
         return self.Data(
             account_key=None,
             key=self.load_key(pems[0]),
@@ -816,14 +827,33 @@ class FileIOPluginTestMixin(PluginIOTestMixin):
     """Common FileIO plugins tests."""
     # this is a test suite | pylint: disable=missing-docstring
 
+    PEM = b'\n-----BEGIN FOO BAR-----\nfoo\nbar\n-----END FOO BAR-----'
+
     def test_empty(self):
         self.assertEqual(IOPlugin.EMPTY_DATA, self.plugin.load())
+
+    def test_load_empty_or_bad_content(self):
+        self.assert_raises_error('.*the file might be empty or corrupt.',
+                                 self.plugin.load_from_content, b'')
+        self.assert_raises_error('.*the file might be empty or corrupt.',
+                                 self.plugin.load_from_content, self.PEM)
 
     def test_save_ignore_unpersisted(self):
         self.plugin.save(self.all_data)
         self.assertEqual(self.plugin.load(), IOPlugin.Data(
             *(data if persist else None for persist, data in
               zip(self.plugin.persisted(), self.all_data))))
+
+
+class ChainFileIOPluginTestMixin(FileIOPluginTestMixin):
+    """Common Chain type FileIO plugins tests."""
+    # this is a test suite | pylint: disable=missing-docstring
+
+    def test_load_empty_or_bad_content(self):
+        self.assert_raises_error('.*PEM encoded message.*',
+                                 self.plugin.load_from_content, b'')
+        self.assert_raises_error('.*the file might be empty or corrupt.',
+                                 self.plugin.load_from_content, self.PEM * 3)
 
 
 class KeyFileTest(FileIOPluginTestMixin, UnitTestCase):
@@ -838,19 +868,19 @@ class CertFileTest(FileIOPluginTestMixin, UnitTestCase):
     PLUGIN_CLS = CertFile
 
 
-class ChainFileTest(FileIOPluginTestMixin, UnitTestCase):
+class ChainFileTest(ChainFileIOPluginTestMixin, UnitTestCase):
     """Tests for ChainFile."""
     # this is a test suite | pylint: disable=missing-docstring
     PLUGIN_CLS = ChainFile
 
 
-class FullChainFileTest(FileIOPluginTestMixin, UnitTestCase):
+class FullChainFileTest(ChainFileIOPluginTestMixin, UnitTestCase):
     """Tests for FullChainFile."""
     # this is a test suite | pylint: disable=missing-docstring
     PLUGIN_CLS = FullChainFile
 
 
-class FullFileTest(FileIOPluginTestMixin, UnitTestCase):
+class FullFileTest(ChainFileIOPluginTestMixin, UnitTestCase):
     """Tests for FullFile."""
     # this is a test suite | pylint: disable=missing-docstring
     PLUGIN_CLS = FullFile
