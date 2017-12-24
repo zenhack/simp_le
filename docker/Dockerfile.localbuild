@@ -1,10 +1,10 @@
-FROM alpine:3.6
+FROM alpine:3.7
 
 LABEL maintainer="Ian Denhardt (@zenhack)"
 
 ENV PATH=/usr/local/bin:$PATH
 
-COPY . /simp_le/src 
+COPY . /simp_le/src
 
 RUN apk update \
     && apk add \
