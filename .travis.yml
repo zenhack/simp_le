@@ -16,7 +16,11 @@ matrix:
   - python: "2.7"
     env: TEST_SUITE=lint_suite
   - python: "3.5"
-    env: TEST_SUITE=docker_suite
+    env: ARCH=amd64 TEST_SUITE=docker_suite FROM=alpine:3.7 IMAGE=zenhack/simp_le:$ARCH
+  - python: "3.5"
+    env: ARCH=arm64 TEST_SUITE=docker_suite FROM=multiarch/alpine:arm64-v3.7 IMAGE=zenhack/simp_le:$ARCH
+  - python: "3.5"
+    env: ARCH=arm TEST_SUITE=docker_suite FROM=multiarch/alpine:armhf-v3.7 IMAGE=zenhack/simp_le:$ARCH
 
 addons:
   hosts:

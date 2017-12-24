@@ -67,7 +67,8 @@ case $1 in
     wait_for_boulder
     ;;
   docker_suite)
-    docker build -t zenhack/simp_le -f docker/Dockerfile .
+    [ $ARCH != "amd64" ] && docker run --rm --privileged multiarch/qemu-user-static:register --reset
+    docker build --build-arg BUILD_FROM="${FROM}" --tag "$IMAGE" --file docker/Dockerfile .
     git clone https://github.com/docker-library/official-images.git official-images
     setup_boulder
     setup_webroot
