@@ -67,7 +67,7 @@ case $1 in
     wait_for_boulder
     ;;
   docker_suite)
-    docker build -t zenhack/simp_le -f docker/Dockerfile.localbuild .
+    docker build -t zenhack/simp_le -f docker/Dockerfile .
     git clone https://github.com/docker-library/official-images.git official-images
     setup_boulder
     setup_webroot

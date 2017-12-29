@@ -74,13 +74,7 @@ For testing and development purpose, you can build this image from the cloned Gi
 ```
 $ git clone https://github.com/zenhack/simp_le.git
 $ cd simp_le
-$ docker build -t zenhack/simp_le -f docker/Dockerfile.localbuild .
-```
-
-You can also build the image with a specific release of simp_le:
-
-```
-$ docker build --build-arg SIMP_LE_VERSION=0.5.0 -t zenhack/simp_le:0.5.0 docker/
+$ docker build -t zenhack/simp_le:dev -f docker/Dockerfile .
 ```
 
 Help
