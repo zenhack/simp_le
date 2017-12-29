@@ -50,7 +50,6 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 import mock
 import OpenSSL
 import pytz
-import requests
 
 from acme import client as acme_client
 from acme import crypto_util
@@ -133,20 +132,6 @@ def gen_csr(pkey, domains, sig_hash='sha256'):
 
     req.sign(pkey, sig_hash)
     return req
-
-
-def get_le_tos_hash(le_uri):
-    """Returns up to date Let's Encrypt ToS hash"""
-    try:
-        le_directory = requests.get(le_uri).json()
-    except requests.ConnectionError:
-        raise Error("Connection to {0} failed.".format(le_uri))
-    except ValueError:
-        raise Error("Failed to decode JSON from {0}".format(le_uri))
-
-    le_tos_uri = le_directory['meta']['terms-of-service']
-    le_tos_hash = sha256_of_uri_contents(le_tos_uri)
-    return le_tos_hash
 
 
 class ComparablePKey(object):  # pylint: disable=too-few-public-methods
@@ -1066,10 +1051,6 @@ def create_parser():
         help='Account key size in bits.',
     )
     reg.add_argument(
-        '--tos_sha256', help='SHA-256 hash of the contents of Terms Of '
-        'Service URI contents.', metavar='HASH',
-    )
-    reg.add_argument(
         '--email', help='Email address. CA is likely to use it to '
         'remind about expiring certificates, as well as for account '
         'recovery. Therefore, it\'s highly recommended to set this '
@@ -1186,24 +1167,6 @@ def remove_validation(root, challb):
     except OSError as error:
         logger.error('Could not remove validation '
                      'file at %s : %s', path, error)
-
-
-def sha256_of_uri_contents(uri, chunk_size=10):
-    """Get SHA256 of URI contents.
-
-    >>> with mock.patch('requests.get') as mock_get:
-    ...     sha256_of_uri_contents('https://example.com')
-    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
-    """
-    h = hashlib.sha256()  # pylint: disable=invalid-name
-    try:
-        response = requests.get(uri, stream=True)
-    except requests.ConnectionError:
-        raise Error("Connection to {0} failed.".format(uri))
-
-    for chunk in response.iter_content(chunk_size):
-        h.update(chunk)
-    return h.hexdigest()
 
 
 def componentwise_or(first, second):
@@ -1440,10 +1403,6 @@ def registered_client(args, existing_account_key):
         logger.debug('Client already registered: %s', error.location)
     else:
         if regr.terms_of_service is not None:
-            tos_hash = sha256_of_uri_contents(regr.terms_of_service)
-            logger.debug('TOS hash: %s', tos_hash)
-            if args.tos_sha256 != tos_hash:
-                raise Error('TOS hash mismatch. Found: {0}.'.format(tos_hash))
             client.agree_to_tos(regr)
 
     return client
@@ -1603,10 +1562,6 @@ def main_with_exceptions(cli_args):
                     'necessary, exiting with status code %d.', EXIT_NO_RENEWAL)
         return EXIT_NO_RENEWAL
 
-    if args.tos_sha256 is None:
-        logger.info("Retrieving Let's Encrypt latest Terms of Service.")
-        args.tos_sha256 = get_le_tos_hash(LE_PRODUCTION_URI)
-
     persist_new_data(args, existing_data)
     return EXIT_RENEWAL
 
@@ -1706,8 +1661,6 @@ class IntegrationTests(unittest.TestCase):
     # this is a test suite | pylint: disable=missing-docstring
 
     SERVER = 'http://localhost:4000/directory'
-    TOS_SHA256 = ('b16e15764b8bc06c5c3f9f19bc8b99fa'
-                  '48e7894aa5a6ccdad65da49bbf564793')
     PORT = 5002
 
     @classmethod
@@ -1743,8 +1696,8 @@ class IntegrationTests(unittest.TestCase):
 
     def test_it(self):
         webroot = os.path.join(os.getcwd(), 'public_html')
-        cmd = ["simp_le", "-v", "--server", (self.SERVER), "--tos_sha256",
-               (self.TOS_SHA256), "-f", "account_key.json", "-f", "key.pem",
+        cmd = ["simp_le", "-v", "--server", (self.SERVER),
+               "-f", "account_key.json", "-f", "key.pem",
                "-f", "full.pem"]
         files = ('account_key.json', 'key.pem', 'full.pem')
         with self._new_swd():
