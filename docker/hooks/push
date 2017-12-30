@@ -1,0 +1,5 @@
+#!/bin/bash
+
+for ARCH in amd64 arm64 arm; do
+  docker push ${DOCKER_REPO}:${ARCH}-${DOCKER_TAG}
+done

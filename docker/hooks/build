@@ -1,3 +1,14 @@
 #!/bin/bash
 
-docker build --tag ${DOCKER_REPO}:${DOCKER_TAG} -f ./Dockerfile ..
+docker run --rm --privileged multiarch/qemu-user-static:register --reset
+
+docker build --tag ${DOCKER_REPO}:amd64-${DOCKER_TAG} \
+             --file ./Dockerfile ..
+
+docker build --tag ${DOCKER_REPO}:arm64-${DOCKER_TAG} \
+             --build-arg BUILD_FROM=multiarch/alpine:arm64-v3.7 \
+             --file ./Dockerfile ..
+
+docker build --tag ${DOCKER_REPO}:arm-${DOCKER_TAG} \
+             --build-arg BUILD_FROM=multiarch/alpine:armhf-v3.7 \
+             --file ./Dockerfile ..

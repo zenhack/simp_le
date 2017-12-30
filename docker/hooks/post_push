@@ -1,0 +1,9 @@
+#!/bin/bash
+
+curl -L https://github.com/estesp/manifest-tool/releases/download/v0.7.0/manifest-tool-linux-amd64 -o ./manifest-tool
+chmod +x ./manifest-tool
+
+./manifest-tool push from-args \
+  --platforms linux/amd64,linux/arm64,linux/arm \
+  --template ${DOCKER_REPO}:ARCH-${DOCKER_TAG} \
+  --target ${DOCKER_REPO}:${DOCKER_TAG}

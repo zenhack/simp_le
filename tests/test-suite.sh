@@ -16,9 +16,9 @@ case $1 in
     simp_le -v --integration_test
     ;;
   docker_suite)
-    official-images/test/run.sh zenhack/simp_le
-    docker run --rm zenhack/simp_le -v --test
-    docker run --rm --net="host" -v "${TRAVIS_BUILD_DIR}/public_html:/simp_le/certs/public_html" zenhack/simp_le -v --integration_test
+    official-images/test/run.sh "$IMAGE"
+    docker run --rm "$IMAGE" -v --test
+    docker run --rm --net="host" -v "${TRAVIS_BUILD_DIR}/public_html:/simp_le/certs/public_html" "$IMAGE" -v --integration_test
     ;;
 esac
 
