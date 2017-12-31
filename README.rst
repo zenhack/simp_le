@@ -114,6 +114,8 @@ to do otherwise (e.g. security & serious bug fixes).
 0.7.0 (Upcoming)
 ++++++++++++++++
 
+* Remove the ToS hash comparison, implicitly agree to CA's ToS if present
+* Add check for empty or corrupt cert/key files
 * Add some sanity checks for email syntax
 * Upgrade acme to 0.20.x
 
