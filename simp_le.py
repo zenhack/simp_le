@@ -1403,6 +1403,8 @@ def registered_client(args, existing_account_key):
         logger.debug('Client already registered: %s', error.location)
     else:
         if regr.terms_of_service is not None:
+            logger.info("By using simp_le, you implicitly agree to the "
+                        "CA's terms of service: %s", regr.terms_of_service)
             client.agree_to_tos(regr)
 
     return client
