@@ -67,6 +67,8 @@ Manifesto
 
 13. Support for revocation.
 
+14. Implicit agreement to the selected ACME CA's terms of service.
+
 Installation
 ------------
 
