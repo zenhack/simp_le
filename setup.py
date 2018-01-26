@@ -8,21 +8,14 @@ here = os.path.abspath(os.path.dirname(__file__))
 readme = codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8').read()
 
 install_requires = [
-    'acme>=0.20,<0.21',
+    'acme>=0.21,<0.22',
     'cryptography',
+    # formerly known as acme.jose:
+    'josepy>=1.0.0',
+    'mock',
     'pyOpenSSL',
     'pytz',
 ]
-
-if sys.version_info < (2, 7):
-    install_requires.extend([
-        'argparse',
-        'mock<1.1.0',
-    ])
-else:
-    install_requires.extend([
-        'mock',
-    ])
 
 tests_require = [
     'pycodestyle',
@@ -57,7 +50,6 @@ setuptools.setup(
         'Operating System :: POSIX :: Linux',
         'Programming Language :: Python',
         'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.4',

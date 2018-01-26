@@ -47,6 +47,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+import josepy as jose
 import mock
 import OpenSSL
 import pytz
@@ -55,7 +56,6 @@ from acme import client as acme_client
 from acme import crypto_util
 from acme import challenges
 from acme import errors as acme_errors
-from acme import jose
 from acme import messages
 
 
