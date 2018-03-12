@@ -1392,20 +1392,24 @@ def registered_client(args, existing_account_key):
     """Create ACME client, register if necessary."""
     key = check_or_generate_account_key(args, existing_account_key)
     net = acme_client.ClientNetwork(key, user_agent=args.user_agent)
-    client = acme_client.Client(directory=args.server, key=key, net=net)
+    directory = messages.Directory.from_json(net.get(args.server).json())
+    client = acme_client.ClientV2(directory, net=net)
+
     if args.email is None:
         logger.warning('--email was not provided; ACME CA will have no '
                        'way of contacting you.')
     new_reg = messages.NewRegistration.from_data(email=args.email)
+
+    if "terms_of_service" in client.directory.meta:
+        logger.info("By using simp_le, you implicitly agree "
+                    "to the CA's terms of service: %s",
+                    client.directory.meta.terms_of_service)
+        new_reg = new_reg.update(terms_of_service_agreed=True)
+
     try:
-        regr = client.register(new_reg)
+        client.new_account(new_reg)
     except acme_errors.ConflictError as error:
         logger.debug('Client already registered: %s', error.location)
-    else:
-        if regr.terms_of_service is not None:
-            logger.info("By using simp_le, you implicitly agree to the "
-                        "CA's terms of service: %s", regr.terms_of_service)
-            client.agree_to_tos(regr)
 
     return client
 
