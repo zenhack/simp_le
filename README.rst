@@ -115,7 +115,7 @@ to do otherwise (e.g. security & serious bug fixes).
 ++++++++++++++++
 
 * Drop official support for Python 2.6
-* Upgrade acme to 0.21.x
+* Upgrade acme to 0.22.x
 
 0.7.0
 +++++
