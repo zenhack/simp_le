@@ -29,7 +29,6 @@ import errno
 import logging
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -1595,50 +1594,60 @@ def main(cli_args=tuple(sys.argv[1:])):     # tuple avoids a pylint warning
 
 
 class MainTest(UnitTestCase):
-    """Unit tests for main()."""
+    """Unit tests for the CLI."""
 
     # this is a test suite | pylint: disable=missing-docstring
+    CMD = ['simp_le']
 
     @classmethod
-    def _run(cls, args):
-        return main(shlex.split(args))
+    def _run(cls, cmd):
+        with open(os.devnull, 'wb') as silent:
+            return subprocess.call(cmd, stdout=silent, stderr=silent)
 
     @mock.patch('sys.stdout')
     def test_exit_code_help_version_ok(self, dummy_stdout):
         # pylint: disable=unused-argument
-        self.assertEqual(EXIT_HELP_VERSION_OK, self._run('--help'))
-        self.assertEqual(EXIT_HELP_VERSION_OK, self._run('--version'))
+        cmd = self.CMD
+        self.assertEqual(EXIT_HELP_VERSION_OK, self._run(cmd + ['--help']))
+        self.assertEqual(EXIT_HELP_VERSION_OK, self._run(cmd + ['--version']))
 
     @mock.patch('sys.stderr')
     def test_error_exit_codes(self, dummy_stderr):
         # pylint: disable=unused-argument
+        cmd = self.CMD
         test_args = [
-            '',  # no args - no good
-            '--bar',  # unrecognized
-            '-f account_key.json -f key.pem -f fullchain.pem',  # no vhosts
+            # no args - no good
+            [''],
+            # unrecognized
+            ['--bar'],
+            # no vhosts
+            ['-f account_key.json', '-f key.pem', '-f fullchain.pem'],
             # no root
-            '-f account_key.json -f key.pem -f fullchain.pem -d example.com',
+            ['-f account_key.json', '-f key.pem',
+             '-f fullchain.pem', '-d example.com'],
             # no root with multiple domains
-            '-f account_key.json -f key.pem -f fullchain.pem '
-            '-d example.com:public_html  -d www.example.com',
+            ['-f account_key.json', '-f key.pem', '-f fullchain.pem',
+             '-d example.com:public_html', '-d www.example.com'],
             # invalid email
-            '-f account_key.json -f key.pem -f fullchain.pem '
-            '-d example.com:public_html --email @wrong.com',
+            ['-f account_key.json', '-f key.pem', '-f fullchain.pem'
+             '-d example.com:public_html', '--email @wrong.com'],
         ]
         # missing plugin coverage
-        test_args.extend(['-d example.com:public_html %s' % rest for rest in [
-            '-f account_key.json',
-            '-f key.pem',
-            '-f account_key.json -f key.pem',
-            '-f key.pem -f cert.pem',
-            '-f key.pem -f chain.pem',
-            '-f fullchain.pem',
-            '-f cert.pem -f fullchain.pem',
+        test_args.extend([['-d example.com:public_html'] + rest for rest in [
+            ['-f account_key.json'],
+            ['-f key.pem'],
+            ['-f account_key.json', '-f key.pem'],
+            ['-f key.pem', '-f cert.pem'],
+            ['-f key.pem', '-f chain.pem'],
+            ['-f fullchain.pem'],
+            ['-f cert.pem', '-f fullchain.pem'],
         ]])
 
         for args in test_args:
+            args_str = ' '.join(args)
             self.assertEqual(
-                EXIT_ERROR, self._run(args), 'Wrong exit code for %s' % args)
+                EXIT_ERROR, self._run(cmd + args),
+                'Wrong exit code for %s' % args_str)
 
 
 @contextlib.contextmanager
