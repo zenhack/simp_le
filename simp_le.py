@@ -1657,13 +1657,13 @@ class IntegrationTests(unittest.TestCase):
 
     Prerequisites:
     - /etc/hosts:127.0.0.1 le.wtf
-    - Boulder running on localhost:4000
+    - Boulder running on 10.77.77.1:4000 (with Docker)
     - Boulder verifying http-01 on port 5002
     """
     # this is a test suite | pylint: disable=missing-docstring
 
-    SERVER = 'http://localhost:4000/directory'
     PORT = 5002
+    SERVER = 'http://10.77.77.1:4000/directory'
 
     @classmethod
     def _run(cls, cmd):
