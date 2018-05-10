@@ -1662,7 +1662,6 @@ class IntegrationTests(unittest.TestCase):
     """
     # this is a test suite | pylint: disable=missing-docstring
 
-    PORT = 5002
     SERVER = 'http://10.77.77.1:4000/directory'
 
     @classmethod

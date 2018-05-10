@@ -25,9 +25,6 @@ addons:
   hosts:
     - le.wtf
     - le2.wtf
-    - boulder
-    - boulder-mysql
-    - boulder-rabbitmq
 
 install:
   - ./tests/install.sh $TEST_SUITE

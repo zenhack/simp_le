@@ -9,13 +9,6 @@ set -xe
 SERVER='http://10.77.77.1:4000/directory'
 PORT=5002
 
-here=$(dirname "$0")
-
-# Would just use realpath, but it's not available on travis apparently:
-cd $(dirname $0)
-here=$PWD
-cd -
-
 setup_docker_compose () {
   curl -L https://github.com/docker/compose/releases/download/1.21.1/docker-compose-"$(uname -s)"-"$(uname -m)" > docker-compose.temp
   chmod +x docker-compose.temp
