@@ -6,15 +6,14 @@
 # from some of the commands in this file (#39).
 set -xe
 
-SERVER=http://localhost:4000/directory
+SERVER='http://10.77.77.1:4000/directory'
 PORT=5002
 
-here=$(dirname "$0")
-
-# Would just use realpath, but it's not available on travis apparently:
-cd $(dirname $0)
-here=$PWD
-cd -
+setup_docker_compose () {
+  curl -L https://github.com/docker/compose/releases/download/1.21.1/docker-compose-"$(uname -s)"-"$(uname -m)" > docker-compose.temp
+  chmod +x docker-compose.temp
+  sudo mv docker-compose.temp /usr/local/bin/docker-compose
+}
 
 setup_boulder() {
   # Per the boulder README:
@@ -27,6 +26,7 @@ setup_boulder() {
   docker-compose pull
   docker-compose build
   docker-compose run \
+    --use-aliases \
     -e FAKE_DNS=$docker_ip \
     --service-ports \
     boulder &
@@ -62,6 +62,7 @@ case $1 in
     ;;
   simp_le_suite)
     pip install -e .
+    setup_docker_compose
     setup_boulder
     setup_webroot
     wait_for_boulder
@@ -70,6 +71,7 @@ case $1 in
     [ $ARCH != "amd64" ] && docker run --rm --privileged multiarch/qemu-user-static:register --reset
     docker build --build-arg BUILD_FROM="${FROM}" --tag "$IMAGE" --file docker/Dockerfile .
     git clone https://github.com/docker-library/official-images.git official-images
+    setup_docker_compose
     setup_boulder
     setup_webroot
     wait_for_boulder
