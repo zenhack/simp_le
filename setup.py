@@ -1,6 +1,5 @@
 import codecs
 import os
-import sys
 import setuptools
 
 
@@ -20,7 +19,7 @@ install_requires = [
     # * https://github.com/pypa/pip/issues/988
     'idna<2.7',
 
-    'acme>=0.22,<0.23',
+    'acme>=0.24,<0.25',
     'cryptography',
     # formerly known as acme.jose:
     'josepy',
