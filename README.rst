@@ -111,6 +111,11 @@ represents the *next* (i.e. not yet released) version.
 Releases occur approximately every two months, unless there is a pressing need
 to do otherwise (e.g. security & serious bug fixes).
 
+0.8.1
++++++
+
+* Add a workaround for some installation problems caused by a bug in pip.
+
 0.8.0
 +++++
 
