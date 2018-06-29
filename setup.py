@@ -7,7 +7,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 readme = codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8').read()
 
 install_requires = [
-    # We don't use idna 2.7 directly, but problems with PyPI's solver
+    # We don't use idna directly, but problems with PyPI's solver
     # have resulted in broken installations twice now, (when idna 2.6
     # was released, and again with 2.7) so as a workaround, we provide
     # an explicit upper bound here, before any of the other constraints
@@ -17,7 +17,7 @@ install_requires = [
     #
     # * https://github.com/zenhack/simp_le/issues/62
     # * https://github.com/pypa/pip/issues/988
-    'idna<2.7',
+    'idna<2.8',
 
     'acme>=0.24,<0.25',
     'cryptography',
