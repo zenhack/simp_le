@@ -19,7 +19,7 @@ install_requires = [
     # * https://github.com/pypa/pip/issues/988
     'idna<2.7',
 
-    'acme>=0.24,<0.25',
+    'acme>=0.25,<0.26',
     'cryptography',
     # formerly known as acme.jose:
     'josepy',
