@@ -1575,9 +1575,8 @@ def exit_with_error(message):
     return EXIT_ERROR
 
 
-def main(cli_args=tuple(sys.argv[1:])):     # tuple avoids a pylint warning
-                                            # about (mutable) list as default
-                                            # argument.
+# tuple avoids a pylint warning about (mutable) list as default argument:
+def main(cli_args=tuple(sys.argv[1:])):
     """Run the script, with exceptions caught and printed to STDERR."""
     # logging (handler) is not set up yet, use STDERR only!
     try:
