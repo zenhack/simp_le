@@ -18,8 +18,8 @@ N.B. this was originally a fork of https://github.com/kuba/simp\_le,
 which is unmaintained and has some breakage due to bitrot. Thanks to
 @kuba for the original implementation.
 
-Manifesto
----------
+Manifest
+--------
 
 1.  `UNIX philosophy`_: Do one thing and do it well!
 
