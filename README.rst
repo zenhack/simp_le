@@ -114,7 +114,7 @@ to do otherwise (e.g. security & serious bug fixes).
 0.13.0 (Upcoming)
 ++++++
 
-* Upgrade acme to 0.30.x
+* Upgrade acme to 0.31.x
 
 0.12.0
 ++++++
