@@ -100,6 +100,8 @@ def split_pems(buf):
     >>> list(split_pems(b''))
     []
     """
+    if isinstance(buf, str):
+        buf = buf.encode()
     for match in _PEM_RE.finditer(buf):
         yield match.group(0)
 
@@ -1414,13 +1416,10 @@ def registered_client(args, existing_account_key):
     return client
 
 
-def get_certr(client, csr, authorizations):
+def get_certr(client, order):
     """Get Certificate Resource for specified CSR and authorizations."""
     try:
-        certr, _ = client.poll_and_request_issuance(
-            jose.ComparableX509(csr), authorizations.values(),
-            # https://github.com/letsencrypt/letsencrypt/issues/1719
-            max_attempts=(10 * len(authorizations)))
+        finalized_order = client.poll_and_finalize(order)
     except acme_errors.PollError as error:
         if error.timeout:
             logger.error(
@@ -1428,29 +1427,28 @@ def get_certr(client, csr, authorizations):
                 'challenge(s) for the following authorizations: %s',
                 ', '.join(authzr.uri for _, authzr in error.exhausted)
             )
-
-        invalid = [authzr for authzr in six.itervalues(error.updated)
-                   if authzr.body.status == messages.STATUS_INVALID]
-        if invalid:
-            logger.error("CA marked some of the authorizations as invalid, "
-                         "which likely means it could not access "
-                         "http://example.com/.well-known/acme-challenge/X. "
-                         "Did you set correct path in -d example.com:path "
-                         "or --default_root? Are all your domains accessible "
-                         "from the internet? Please check your domains' DNS "
-                         "entries, your host's network/firewall setup and "
-                         "your webserver config. If a domain's DNS entry has "
-                         "both A and AAAA fields set up, some CAs such as "
-                         "Let's Encrypt will perform the challenge validation "
-                         "over IPv6. If your DNS provider does not answer "
-                         "correctly to CAA records request, Let's Encrypt "
-                         "won't issue a certificate for your domain (see "
-                         "https://letsencrypt.org/docs/caa/). Failing "
-                         "authorizations: %s",
-                         ', '.join(authzr.uri for authzr in invalid))
-
         raise Error('Challenge validation has failed, see error log.')
-    return certr
+
+    except acme_errors.ValidationError as error:
+        logger.error("CA marked some of the authorizations as invalid, "
+                     "which likely means it could not access "
+                     "http://example.com/.well-known/acme-challenge/X. "
+                     "Did you set correct path in -d example.com:path "
+                     "or --default_root? Are all your domains accessible "
+                     "from the internet? Please check your domains' DNS "
+                     "entries, your host's network/firewall setup and "
+                     "your webserver config. If a domain's DNS entry has "
+                     "both A and AAAA fields set up, some CAs such as "
+                     "Let's Encrypt will perform the challenge validation "
+                     "over IPv6. If your DNS provider does not answer "
+                     "correctly to CAA records request, Let's Encrypt "
+                     "won't issue a certificate for your domain (see "
+                     "https://letsencrypt.org/docs/caa/). Failing "
+                     "authorizations: %s",
+                     ', '.join(authzr.uri for authzr in error.failed_authzrs))
+        raise Error('Challenge validation has failed, see error log.')
+
+    return finalized_order
 
 
 def persist_new_data(args, existing_data):
@@ -1460,9 +1458,24 @@ def persist_new_data(args, existing_data):
 
     client = registered_client(args, existing_data.account_key)
 
+    if args.reuse_key and existing_data.key is not None:
+        logger.info('Reusing existing certificate private key')
+        key = existing_data.key
+    else:
+        logger.info('Generating new certificate private key')
+        key = ComparablePKey(gen_pkey(args.cert_key_size))
+    csr = gen_csr(
+        key.wrapped, [vhost.name.encode() for vhost in args.vhosts]
+    )
+    csr_pem = OpenSSL.crypto.dump_certificate_request(
+        OpenSSL.crypto.FILETYPE_PEM, csr
+    )
+
+    order = client.new_order(csr_pem)
+
     authorizations = dict(
-        (vhost.name, client.request_domain_challenges(vhost.name))
-        for vhost in args.vhosts
+        [authorization.body.identifier.value, authorization]
+        for authorization in order.authorizations
     )
     if any(supported_challb(auth) is None
            for auth in six.itervalues(authorizations)):
@@ -1471,26 +1484,28 @@ def persist_new_data(args, existing_data):
 
     for name, auth in six.iteritems(authorizations):
         challb = supported_challb(auth)
-        response, validation = challb.response_and_validation(client.key)
+        response, validation = challb.response_and_validation(client.net.key)
         save_validation(roots[name], challb, validation)
 
         client.answer_challenge(challb, response)
 
-    if args.reuse_key and existing_data.key is not None:
-        logger.info('Reusing existing certificate private key')
-        key = existing_data.key
-    else:
-        logger.info('Generating new certificate private key')
-        key = ComparablePKey(gen_pkey(args.cert_key_size))
-    csr = gen_csr(key.wrapped, [vhost.name.encode() for vhost in args.vhosts])
     try:
-        certr = get_certr(client, csr, authorizations)
+        certr = get_certr(client, order)
+        pems = list(split_pems(certr.fullchain_pem))
+
+        cert = jose.ComparableX509(OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM, pems[0]))
+
+        chain = []
+        for pem in pems[1:]:
+            chain.append(jose.ComparableX509(OpenSSL.crypto.load_certificate(
+                OpenSSL.crypto.FILETYPE_PEM, pem)))
+
         persist_data(args, existing_data, new_data=IOPlugin.Data(
-            account_key=client.key, key=key,
-            cert=certr.body, chain=client.fetch_chain(certr)))
+            account_key=client.net.key, key=key, cert=cert, chain=chain))
     except Error as error:
         persist_data(args, existing_data, new_data=IOPlugin.Data(
-            account_key=client.key, key=None, cert=None, chain=None))
+            account_key=client.net.key, key=None, cert=None, chain=None))
         raise error
     finally:
         for name, auth in six.iteritems(authorizations):
