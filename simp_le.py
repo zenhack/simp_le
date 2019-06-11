@@ -1634,9 +1634,9 @@ def revoke(args):
     if existing_data.cert is None:
         raise Error('No existing certificate')
 
-    key = check_or_generate_account_key(args, existing_data.account_key)
-    net = acme_client.ClientNetwork(key, user_agent=args.user_agent)
-    client = acme_client.Client(directory=args.server, key=key, net=net)
+    client = registered_client(
+        args, existing_data.account_key, existing_data.account_reg)
+
     client.revoke(existing_data.cert, rsn=0)
     return EXIT_REVOKE_OK
 
