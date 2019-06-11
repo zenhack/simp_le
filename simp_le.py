@@ -81,6 +81,29 @@ class Error(Exception):
     """simp_le error."""
 
 
+_PEM_RE_LABELCHAR = r'[\x21-\x2c\x2e-\x7e]'
+_PEM_RE = re.compile(
+    (r"""
+^-----BEGIN\ ((?:%s(?:[- ]?%s)*)?)\s*-----$
+.*?
+^-----END\ \1-----\s*""" % (_PEM_RE_LABELCHAR, _PEM_RE_LABELCHAR)).encode(),
+    re.DOTALL | re.MULTILINE | re.VERBOSE)
+_PEMS_SEP = b'\n'
+
+
+def split_pems(buf):
+    r"""Split buffer comprised of PEM encoded (RFC 7468).
+
+    >>> x = b'\n-----BEGIN FOO BAR-----\nfoo\nbar\n-----END FOO BAR-----'
+    >>> len(list(split_pems(x * 3)))
+    3
+    >>> list(split_pems(b''))
+    []
+    """
+    for match in _PEM_RE.finditer(buf):
+        yield match.group(0)
+
+
 def gen_pkey(bits):
     """Generate a private key.
 
@@ -402,25 +425,9 @@ class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
       typ: One of `OpenSSL.crypto.FILETYPE_*`, used in loading/dumping.
     """
 
-    _PEMS_SEP = b'\n'
-
     def __init__(self, typ=OpenSSL.crypto.FILETYPE_PEM, **kwargs):
         self.typ = typ
         super(OpenSSLIOPlugin, self).__init__(**kwargs)
-
-    @staticmethod
-    def split_pems(data):
-        """Split buffer comprised of PEM encoded (RFC 7468)."""
-        pem_re_labelchar = r'[\x21-\x2c\x2e-\x7e]'
-        pem_re = re.compile(
-            (r"""
-        ^-----BEGIN\ ((?:%s(?:[- ]?%s)*)?)\s*-----$
-        .*?
-        ^-----END\ \1-----\s*""" % (pem_re_labelchar,
-                                    pem_re_labelchar)).encode(),
-            re.DOTALL | re.MULTILINE | re.VERBOSE)
-        for match in pem_re.finditer(data):
-            yield match.group(0)
 
     def load_key(self, data):
         """Load private key."""
@@ -523,7 +530,7 @@ class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
         return self.Data(account_key=False, key=False, cert=False, chain=True)
 
     def load_from_content(self, content):
-        pems = list(self.split_pems(content))
+        pems = list(split_pems(content))
         if not pems:
             raise Error("No PEM encoded message was found in {0}; "
                         "at least 1 was expected.".format(self.path))
@@ -536,7 +543,7 @@ class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
 
     def save(self, data):
         pems = [self.dump_cert(cert) for cert in data.chain]
-        return self.save_to_file(self._PEMS_SEP.join(pems))
+        return self.save_to_file(_PEMS_SEP.join(pems))
 
 
 @IOPlugin.register(path='fullchain.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
@@ -547,7 +554,7 @@ class FullChainFile(FileIOPlugin, OpenSSLIOPlugin):
         return self.Data(account_key=False, key=False, cert=True, chain=True)
 
     def load_from_content(self, content):
-        pems = list(self.split_pems(content))
+        pems = list(split_pems(content))
         if len(pems) < 2:
             raise Error("Not enough PEM encoded messages were found in {0}; "
                         "at least 2 were expected, found {1}."
@@ -562,7 +569,7 @@ class FullChainFile(FileIOPlugin, OpenSSLIOPlugin):
     def save(self, data):
         pems = [self.dump_cert(data.cert)]
         pems.extend(self.dump_cert(cert) for cert in data.chain)
-        return self.save_to_file(self._PEMS_SEP.join(pems))
+        return self.save_to_file(_PEMS_SEP.join(pems))
 
 
 @IOPlugin.register(path='full.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
@@ -573,7 +580,7 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
         return self.Data(account_key=False, key=True, cert=True, chain=True)
 
     def load_from_content(self, content):
-        pems = list(self.split_pems(content))
+        pems = list(split_pems(content))
         if len(pems) < 3:
             raise Error("Not enough PEM encoded messages were found in {0}; "
                         "at least 3 were expected, found {1}."
@@ -588,7 +595,7 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
     def save(self, data):
         pems = [self.dump_key(data.key), self.dump_cert(data.cert)]
         pems.extend(self.dump_cert(cert) for cert in data.chain)
-        return self.save_to_file(self._PEMS_SEP.join(pems))
+        return self.save_to_file(_PEMS_SEP.join(pems))
 
 
 @IOPlugin.register(path='external.sh', typ=OpenSSL.crypto.FILETYPE_PEM)
@@ -651,7 +658,7 @@ class ExternalIOPlugin(JWKIOPlugin, OpenSSLIOPlugin):
 
     def load(self):
         """Call the external script to retrieve persisted data."""
-        pems = list(self.split_pems(self.get_output_or_fail('load')))
+        pems = list(split_pems(self.get_output_or_fail('load')))
         if not pems:
             return self.EMPTY_DATA
         persisted = self.persisted()
@@ -687,7 +694,7 @@ class ExternalIOPlugin(JWKIOPlugin, OpenSSLIOPlugin):
             logger.exception(error)
             raise Error(
                 'There was a problem executing external IO plugin script')
-        stdout, stderr = proc.communicate(self._PEMS_SEP.join(output))
+        stdout, stderr = proc.communicate(_PEMS_SEP.join(output))
         if stdout is not None:
             logger.debug('STDOUT: %s', stdout)
         if stderr is not None:
@@ -760,18 +767,6 @@ class UnitTestCase(unittest.TestCase):
             return False
         finally:
             logger.removeHandler(handler)
-
-
-class SplitPemsTest(UnitTestCase):
-    """split_pems static method test."""
-    # this is a test suite | pylint: disable=missing-docstring
-
-    def test_split_pems(self):
-        pem = b'\n-----BEGIN FOO BAR-----\nfoo\nbar\n-----END FOO BAR-----'
-        result = len(list(OpenSSLIOPlugin.split_pems(pem * 3)))
-        self.assertEqual(result, 3)
-        result = list(OpenSSLIOPlugin.split_pems(b''))
-        self.assertEqual(result, [])
 
 
 class PluginIOTestMixin(object):
