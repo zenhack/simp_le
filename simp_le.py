@@ -282,19 +282,26 @@ class IOPlugin(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    Data = collections.namedtuple('IOPluginData', 'account_key key cert chain')
+    Data = collections.namedtuple('IOPluginData', 'account_key account_reg key cert chain')
     """Plugin data.
 
     Unless otherwise stated, plugin data components are typically
     filled with the following data:
 
     - for `account_key`: private account key, an instance of `acme.jose.JWK`
+    - for `account_reg`: account registration info, an instance of `acme.client.net.account`
     - for `key`: private key, an instance of `OpenSSL.crypto.PKey`
     - for `cert`: certificate, an instance of `OpenSSL.crypto.X509`
     - for `chain`: certificate chain, a list of `OpenSSL.crypto.X509` instances
     """
 
-    EMPTY_DATA = Data(account_key=None, key=None, cert=None, chain=None)
+    EMPTY_DATA = Data(
+        account_key=None,
+        account_reg=None,
+        key=None,
+        cert=None,
+        chain=None,
+    )
 
     def __init__(self, path, **dummy_kwargs):
         self.path = path
@@ -419,6 +426,18 @@ class JWKIOPlugin(IOPlugin):  # pylint: disable=abstract-method
             encryption_algorithm=serialization.NoEncryption(),
         ).strip()
 
+class JSONIOPlugin(IOPlugin):  # pylint: disable=abstract-method
+    """IO Plugin that uses JSON."""
+
+    @classmethod
+    def load_json(cls, data):
+        """Load JSON."""
+        return messages.RegistrationResource.json_loads(data)
+
+    @classmethod
+    def dump_json(cls, json):
+        """Dump JSON."""
+        return json.json_dumps()
 
 class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
     """IOPlugin that uses pyOpenSSL.
@@ -467,11 +486,18 @@ class AccountKey(FileIOPlugin, JWKIOPlugin):
     WRITE_MODE = 'w'
 
     def persisted(self):
-        return self.Data(account_key=True, key=False, cert=False, chain=False)
+        return self.Data(
+            account_key=True,
+            account_reg=False,
+            key=False,
+            cert=False,
+            chain=False,
+        )
 
     def load_from_content(self, content):
         return self.Data(
             account_key=self.load_jwk(content),
+            account_reg=None,
             key=None,
             cert=None,
             chain=None,
@@ -481,6 +507,36 @@ class AccountKey(FileIOPlugin, JWKIOPlugin):
         key = self.dump_jwk(data.account_key)
         return self.save_to_file(key)
 
+@IOPlugin.register(path='account_reg.json')
+class AccountRegistration(FileIOPlugin, JSONIOPlugin):
+    """Account registration IO Plugin using JSON."""
+
+    # this is not a binary file
+    READ_MODE = 'r'
+    WRITE_MODE = 'w'
+
+    def persisted(self):
+        return self.Data(
+            account_key=False,
+            account_reg=True,
+            key=False,
+            cert=False,
+            chain=False,
+        )
+
+    def load_from_content(self, content):
+        return self.Data(
+            account_key=None,
+            account_reg=self.load_json(content),
+            key=None,
+            cert=None,
+            chain=None,
+        )
+
+    def save(self, data):
+        reg = self.dump_json(data.account_reg)
+        return self.save_to_file(reg)
+
 
 @IOPlugin.register(path='key.der', typ=OpenSSL.crypto.FILETYPE_ASN1)
 @IOPlugin.register(path='key.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
@@ -488,11 +544,18 @@ class KeyFile(FileIOPlugin, OpenSSLIOPlugin):
     """Private key file plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=True, cert=False, chain=False)
+        return self.Data(
+            account_key=False,
+            account_reg=False,
+            key=True,
+            cert=False,
+            chain=False,
+        )
 
     def load_from_content(self, content):
         return self.Data(
             account_key=None,
+            account_reg=None,
             key=self.load_key(content),
             cert=None,
             chain=None,
@@ -509,11 +572,18 @@ class CertFile(FileIOPlugin, OpenSSLIOPlugin):
     """Certificate file plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=False, cert=True, chain=False)
+        return self.Data(
+            account_key=False,
+            account_reg=False,
+            key=False,
+            cert=True,
+            chain=False,
+        )
 
     def load_from_content(self, content):
         return self.Data(
             account_key=None,
+            account_reg=None,
             key=None,
             cert=self.load_cert(content),
             chain=None,
@@ -529,7 +599,13 @@ class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
     """Certificate chain plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=False, cert=False, chain=True)
+        return self.Data(
+            account_key=False,
+            account_reg=False,
+            key=False,
+            cert=False,
+            chain=True,
+        )
 
     def load_from_content(self, content):
         pems = list(split_pems(content))
@@ -538,6 +614,7 @@ class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
                         "at least 1 was expected.".format(self.path))
         return self.Data(
             account_key=None,
+            account_reg=None,
             key=None,
             cert=None,
             chain=[self.load_cert(cert) for cert in pems[0:]],
@@ -553,7 +630,13 @@ class FullChainFile(FileIOPlugin, OpenSSLIOPlugin):
     """Full chain file plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=False, cert=True, chain=True)
+        return self.Data(
+            account_key=False,
+            account_reg=False,
+            key=False,
+            cert=True,
+            chain=True,
+        )
 
     def load_from_content(self, content):
         pems = list(split_pems(content))
@@ -563,6 +646,7 @@ class FullChainFile(FileIOPlugin, OpenSSLIOPlugin):
                         .format(self.path, len(pems)))
         return self.Data(
             account_key=None,
+            account_reg=None,
             key=None,
             cert=self.load_cert(pems[0]),
             chain=[self.load_cert(cert) for cert in pems[1:]],
@@ -579,7 +663,13 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
     """Private key, certificate and chain plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=True, cert=True, chain=True)
+        return self.Data(
+            account_key=False,
+            account_reg=False,
+            key=True,
+            cert=True,
+            chain=True,
+        )
 
     def load_from_content(self, content):
         pems = list(split_pems(content))
@@ -589,6 +679,7 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
                         .format(self.path, len(pems)))
         return self.Data(
             account_key=None,
+            account_reg=None,
             key=self.load_key(pems[0]),
             cert=self.load_cert(pems[1]),
             chain=[self.load_cert(cert) for cert in pems[2:]],
@@ -1018,9 +1109,9 @@ def create_parser():
         '-f', dest='ioplugins', action='append', default=[],
         metavar='PLUGIN', choices=sorted(IOPlugin.registered),
         help='Input/output plugin of choice, can be specified multiple '
-        'times and, in fact, it should be specified as many times as it '
-        'is necessary to cover all components: key, certificate, chain. '
-        'Allowed values: %s.' % ', '.join(sorted(IOPlugin.registered)),
+        'times and, in fact, it should be specified as many times as it is '
+        'necessary to cover all components: key, registration, certificate, '
+        'chain. Allowed values: %s.' % ', '.join(sorted(IOPlugin.registered)),
     )
     io_group.add_argument(
         '--cert_key_size', type=int, default=4096, metavar='BITS',
@@ -1280,7 +1371,12 @@ def integration_test(args):
 def check_plugins_persist_all(ioplugins):
     """Do plugins cover all components (key/cert/chain)?"""
     persisted = IOPlugin.Data(
-        account_key=False, key=False, cert=False, chain=False)
+        account_key=False,
+        account_reg=False,
+        key=False,
+        cert=False,
+        chain=False,
+    )
     for plugin_name in ioplugins:
         persisted = IOPlugin.Data(*componentwise_or(
             persisted, IOPlugin.registered[plugin_name].persisted()))
@@ -1390,28 +1486,35 @@ def check_or_generate_account_key(args, existing):
     return existing
 
 
-def registered_client(args, existing_account_key):
-    """Create ACME client, register if necessary."""
+def registered_client(args, existing_account_key, existing_account_reg):
+    """Return an ACME v2 client from account key and registration.
+    Register a new account or recover missing registration if necessary."""
     key = check_or_generate_account_key(args, existing_account_key)
     net = acme_client.ClientNetwork(key, user_agent=args.user_agent)
     directory = messages.Directory.from_json(net.get(args.server).json())
     client = acme_client.ClientV2(directory, net=net)
 
-    if args.email is None:
-        logger.warning('--email was not provided; ACME CA will have no '
-                       'way of contacting you.')
-    new_reg = messages.NewRegistration.from_data(email=args.email)
+    if existing_account_reg is None:
+        if args.email is None:
+            logger.warning('--email was not provided; ACME CA will have no '
+                           'way of contacting you.')
+        new_reg = messages.NewRegistration.from_data(email=args.email)
 
-    if "terms_of_service" in client.directory.meta:
-        logger.info("By using simp_le, you implicitly agree "
-                    "to the CA's terms of service: %s",
-                    client.directory.meta.terms_of_service)
-        new_reg = new_reg.update(terms_of_service_agreed=True)
+        if "terms_of_service" in client.directory.meta:
+            logger.info("By using simp_le, you implicitly agree "
+                        "to the CA's terms of service: %s",
+                        client.directory.meta.terms_of_service)
+            new_reg = new_reg.update(terms_of_service_agreed=True)
 
-    try:
-        client.new_account(new_reg)
-    except acme_errors.ConflictError as error:
-        logger.debug('Client already registered: %s', error.location)
+        try:
+            client.new_account(new_reg)
+        except acme_errors.ConflictError as error:
+            logger.debug('Client already registered: %s', error.location)
+            existing_reg = messages.RegistrationResource(uri=error.location)
+            existing_reg = client.query_registration(existing_reg)
+            client.update_registration(existing_reg)
+    else:
+        client.update_registration(existing_account_reg)
 
     return client
 
@@ -1456,7 +1559,8 @@ def persist_new_data(args, existing_data):
     roots = compute_roots(args.vhosts, args.default_root)
     logger.debug('Computed roots: %r', roots)
 
-    client = registered_client(args, existing_data.account_key)
+    client = registered_client(
+        args, existing_data.account_key, existing_data.account_reg)
 
     if args.reuse_key and existing_data.key is not None:
         logger.info('Reusing existing certificate private key')
@@ -1502,10 +1606,20 @@ def persist_new_data(args, existing_data):
                 OpenSSL.crypto.FILETYPE_PEM, pem)))
 
         persist_data(args, existing_data, new_data=IOPlugin.Data(
-            account_key=client.net.key, key=key, cert=cert, chain=chain))
+            account_key=client.net.key,
+            account_reg=client.net.account,
+            key=key,
+            cert=cert,
+            chain=chain,
+        ))
     except Error as error:
         persist_data(args, existing_data, new_data=IOPlugin.Data(
-            account_key=client.net.key, key=None, cert=None, chain=None))
+            account_key=client.net.key,
+            account_reg=client.net.account,
+            key=None,
+            cert=None,
+            chain=None,
+        ))
         raise error
     finally:
         for name, auth in six.iteritems(authorizations):
