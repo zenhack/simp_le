@@ -50,8 +50,7 @@ Manifest
 
 9.  Flexible storage capabilities. Built-in
     ``simp_le -f fullchain.pem    -f key.pem``,
-    ``simp_le -f chain.pem -f cert.pem -f key.pem``, etc. Extensions
-    through ``simp_le -f external.sh``.
+    ``simp_le -f chain.pem -f cert.pem -f key.pem``, etc.
 
 10. Do not allow specifying output file paths. Users should symlink if
     necessary!
@@ -115,6 +114,7 @@ to do otherwise (e.g. security & serious bug fixes).
 ++++++
 
 * Upgrade acme to 0.34.x
+* Remove the `-f external.sh` feature
 
 0.14.0
 ++++++

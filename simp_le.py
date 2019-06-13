@@ -44,7 +44,6 @@ import six
 from six.moves import zip  # pylint: disable=redefined-builtin
 
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 import josepy as jose
@@ -407,24 +406,10 @@ class JWKIOPlugin(IOPlugin):  # pylint: disable=abstract-method
         return jose.JWKRSA.json_loads(data)
 
     @classmethod
-    def load_pem_jwk(cls, data):
-        """Load JWK encoded as PEM."""
-        return jose.JWKRSA(key=serialization.load_pem_private_key(
-            data, password=None, backend=default_backend()))
-
-    @classmethod
     def dump_jwk(cls, jwk):
         """Dump JWK."""
         return jwk.json_dumps()
 
-    @classmethod
-    def dump_pem_jwk(cls, data):
-        """Dump JWK as PEM."""
-        return data.key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption(),
-        ).strip()
 
 class JSONIOPlugin(IOPlugin):  # pylint: disable=abstract-method
     """IO Plugin that uses JSON."""
@@ -691,112 +676,6 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
         return self.save_to_file(_PEMS_SEP.join(pems))
 
 
-@IOPlugin.register(path='external.sh', typ=OpenSSL.crypto.FILETYPE_PEM)
-class ExternalIOPlugin(JWKIOPlugin, OpenSSLIOPlugin):
-    """External IO Plugin.
-
-    This plugin executes script that complies with the
-    "persisted|load|save protocol":
-
-    - whenever the script is called with `persisted` as the first
-      argument, it should send to STDOUT a single line consisting of a
-      subset of four keywords: `account_key`, `key`, `cert`, `chain`
-      (in any order, separated by whitespace);
-
-    - whenever the script is called with `load` as the first argument it
-      shall write to STDOUT all persisted data as PEM encoded strings in
-      the following order: account_key, key, certificate, certificates
-      in the chain (from leaf to root). If some data is not persisted,
-      it must be skipped in the output;
-
-    - whenever the script is called with `save` as the first argument,
-      it should accept data from STDIN and persist it. Data is encoded
-      and ordered in the same way as in the `load` case.
-    """
-
-    @property
-    def script(self):
-        """Path to the script."""
-        return os.path.join('.', self.path)
-
-    def get_output_or_fail(self, command):
-        """Get output or throw an exception in case of errors."""
-        try:
-            proc = subprocess.Popen(
-                [self.script, command], stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE)
-        except (OSError, subprocess.CalledProcessError) as error:
-            raise Error('Failed to execute external script: {0}'.format(error))
-
-        stdout, stderr = proc.communicate()
-        if stderr is not None:
-            logger.error('STDERR: %s', stderr)
-        if proc.wait():
-            raise Error('External script exited with non-zero code: {0}'
-                        .format(proc.returncode))
-
-        # Do NOT log `stdout` as it might contain secret material (in
-        # case key is persisted)
-        return stdout
-
-    def persisted(self):
-        """Call the external script and see which data is persisted."""
-        output = self.get_output_or_fail('persisted').split()
-        return self.Data(
-            account_key=(b'account_key' in output),
-            key=(b'key' in output),
-            cert=(b'cert' in output),
-            chain=(b'chain' in output),
-        )
-
-    def load(self):
-        """Call the external script to retrieve persisted data."""
-        pems = list(split_pems(self.get_output_or_fail('load')))
-        if not pems:
-            return self.EMPTY_DATA
-        persisted = self.persisted()
-
-        account_key = self.load_pem_jwk(
-            pems.pop(0)) if persisted.account_key else None
-        key = self.load_key(pems.pop(0)) if persisted.key else None
-        cert = self.load_cert(pems.pop(0)) if persisted.cert else None
-        chain = ([self.load_cert(cert_data) for cert_data in pems]
-                 if persisted.chain else None)
-        return self.Data(account_key=account_key, key=key,
-                         cert=cert, chain=chain)
-
-    def save(self, data):
-        """Call the external script and send data to be persisted to STDIN."""
-        persisted = self.persisted()
-        output = []
-        if persisted.account_key:
-            output.append(self.dump_pem_jwk(data.account_key))
-        if persisted.key:
-            output.append(self.dump_key(data.key))
-        if persisted.cert:
-            output.append(self.dump_cert(data.cert))
-        if persisted.chain:
-            output.extend(self.dump_cert(cert) for cert in data.chain)
-
-        logger.info('Calling `%s save` and piping data through', self.script)
-        try:
-            proc = subprocess.Popen(
-                [self.script, 'save'], stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE)
-        except OSError as error:
-            logger.exception(error)
-            raise Error(
-                'There was a problem executing external IO plugin script')
-        stdout, stderr = proc.communicate(_PEMS_SEP.join(output))
-        if stdout is not None:
-            logger.debug('STDOUT: %s', stdout)
-        if stderr is not None:
-            logger.error('STDERR: %s', stderr)
-        if proc.wait():
-            raise Error('External script exited with non-zero code: {0}'
-                        .format(proc.returncode))
-
-
 class UnitTestCase(unittest.TestCase):
     """simp_le unit test case."""
 
@@ -958,57 +837,6 @@ class FullFileTest(ChainFileIOPluginTestMixin, UnitTestCase):
     """Tests for FullFile."""
     # this is a test suite | pylint: disable=missing-docstring
     PLUGIN_CLS = FullFile
-
-
-class ExternalIOPluginTest(PluginIOTestMixin, UnitTestCase):
-    """Tests for ExternalIOPlugin."""
-    # this is a test suite | pylint: disable=missing-docstring
-    PLUGIN_CLS = ExternalIOPlugin
-
-    def save_script(self, contents):
-        with open(self.path, 'w') as external_plugin_file:
-            external_plugin_file.write(contents)
-        os.chmod(self.path, 0o700)
-
-    def test_no_persisted_empty(self):
-        self.save_script('#!/bin/sh')
-        self.assertEqual(IOPlugin.EMPTY_DATA, self.plugin.load())
-
-    def test_missing_path_raises_error(self):
-        self.assert_raises_error(
-            'Failed to execute external script', self.plugin.load)
-
-    def test_load_nonzero_raises_error(self):
-        self.save_script('#!/bin/sh\nfalse')
-        self.assert_raises_error(
-            '.*exited with non-zero code: 1', self.plugin.load)
-
-    def test_save_nonzero_raises_error(self):
-        self.save_script('#!/bin/sh\nfalse')
-        self.assert_raises_error(
-            '.*exited with non-zero code: 1', self.plugin.save, self.key_data)
-
-    def one_file_script(self, persisted):
-        path = os.path.join(self.root, 'pem')
-        self.save_script("""\
-#!/bin/sh
-case $1 in
-  save) cat - > {path};;
-  load) [ ! -f {path} ] ||  cat {path};;
-  persisted) echo {persisted};;
-esac
-""".format(path=path, persisted=persisted))
-        return path
-
-    def test_it(self):
-        path = self.one_file_script('cert chain key account_key')
-        # not yet persisted
-        self.assertEqual(IOPlugin.EMPTY_DATA, self.plugin.load())
-        # save some data
-        self.plugin.save(self.all_data)
-        self.assertTrue(os.path.exists(path))
-        # loading should return the persisted data back in
-        self.assertEqual(self.all_data, self.plugin.load())
 
 
 class PortNumWarningTest(UnitTestCase):
