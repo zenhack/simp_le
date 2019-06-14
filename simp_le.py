@@ -877,6 +877,7 @@ class PluginIOTestMixin(object):
                 public_exponent=65537, key_size=1024,
                 backend=default_backend(),
             )),
+            account_reg=messages.NewRegistration.from_data(),
             key=ComparablePKey(raw_key),
             cert=jose.ComparableX509(crypto_util.gen_ss_cert(raw_key, ['a'])),
             chain=[
@@ -1747,19 +1748,23 @@ class MainTest(UnitTestCase):
         test_args = [
             '',  # no args - no good
             '--bar',  # unrecognized
-            '-f account_key.json -f key.pem -f fullchain.pem',  # no vhosts
+            # no vhosts
+            '-f account_key.json -f account_reg.json '
+            '-f key.pem -f fullchain.pem',
             # no root
-            '-f account_key.json -f key.pem -f fullchain.pem -d example.com',
+            '-f account_key.json -f account_reg.json '
+            '-f key.pem -f fullchain.pem -d example.com',
             # no root with multiple domains
-            '-f account_key.json -f key.pem -f fullchain.pem '
-            '-d example.com:public_html  -d www.example.com',
+            '-f account_key.json -f account_reg.json -f key.pem '
+            '-f fullchain.pem -d example.com:public_html  -d www.example.com',
             # invalid email
-            '-f account_key.json -f key.pem -f fullchain.pem '
-            '-d example.com:public_html --email @wrong.com',
+            '-f account_key.json -f account_reg.json -f key.pem '
+            '-f fullchain.pem -d example.com:public_html --email @wrong.com',
         ]
         # missing plugin coverage
         test_args.extend(['-d example.com:public_html %s' % rest for rest in [
             '-f account_key.json',
+            '-f account_reg.json'
             '-f key.pem',
             '-f account_key.json -f key.pem',
             '-f key.pem -f cert.pem',
@@ -1830,9 +1835,9 @@ class IntegrationTests(unittest.TestCase):
     def test_it(self):
         webroot = os.path.join(os.getcwd(), 'public_html')
         cmd = ["simp_le", "-v", "--server", (self.SERVER),
-               "-f", "account_key.json", "-f", "key.pem",
-               "-f", "full.pem"]
-        files = ('account_key.json', 'key.pem', 'full.pem')
+               "-f", "account_key.json", "-f", "account_reg.json",
+               "-f", "key.pem", "-f", "full.pem"]
+        files = ('account_key.json', 'account_reg.json', 'key.pem', 'full.pem')
         with self._new_swd():
             webroot_fail_arg = ["-d", "le.wtf:%s" % os.getcwd()]
             self.assertEqual(EXIT_ERROR, self._run(cmd + webroot_fail_arg))
@@ -1852,7 +1857,8 @@ class IntegrationTests(unittest.TestCase):
 
             self.assertEqual(EXIT_REVOKE_OK, self._run([
                 "simp_le", "-v", "--server", (self.SERVER), "--revoke",
-                "-f", "account_key.json", "-f", "full.pem"]))
+                "-f", "account_key.json", "-f", "account_reg.json",
+                "-f", "full.pem"]))
             # Revocation shouldn't touch any files
             self.assertEqual(initial_stats, self.get_stats(*files))
 
