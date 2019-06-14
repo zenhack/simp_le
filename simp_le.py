@@ -206,6 +206,7 @@ class ComparablePKey(object):  # pylint: disable=too-few-public-methods
 
     Internal implementation is not optimized for performance!
     """
+
     def __init__(self, wrapped):
         self.wrapped = wrapped
 
@@ -281,14 +282,18 @@ class IOPlugin(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    Data = collections.namedtuple('IOPluginData', 'account_key account_reg key cert chain')
+    Data = collections.namedtuple(
+        'IOPluginData',
+        'account_key account_reg key cert chain'
+    )
     """Plugin data.
 
     Unless otherwise stated, plugin data components are typically
     filled with the following data:
 
     - for `account_key`: private account key, an instance of `acme.jose.JWK`
-    - for `account_reg`: account registration info, an instance of `acme.client.net.account`
+    - for `account_reg`: account registration info, an instance of
+    `acme.messages.RegistrationResource`
     - for `key`: private key, an instance of `OpenSSL.crypto.PKey`
     - for `cert`: certificate, an instance of `OpenSSL.crypto.X509`
     - for `chain`: certificate chain, a list of `OpenSSL.crypto.X509` instances
@@ -350,8 +355,8 @@ class IOPlugin(object):
         def init_and_reg(plugin_cls):
             """Initialize plugin class and register."""
             plugin = plugin_cls(**kwargs)
-            assert (os.path.sep not in plugin.path and
-                    plugin.path not in ('.', '..'))
+            assert (os.path.sep not in plugin.path
+                    and plugin.path not in ('.', '..'))
             cls.registered[plugin.path] = plugin
             return plugin_cls
         return init_and_reg
@@ -424,6 +429,7 @@ class JSONIOPlugin(IOPlugin):  # pylint: disable=abstract-method
         """Dump JSON."""
         return json.json_dumps()
 
+
 class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
     """IOPlugin that uses pyOpenSSL.
 
@@ -491,6 +497,7 @@ class AccountKey(FileIOPlugin, JWKIOPlugin):
     def save(self, data):
         key = self.dump_jwk(data.account_key)
         return self.save_to_file(key)
+
 
 @IOPlugin.register(path='account_reg.json')
 class AccountRegistration(FileIOPlugin, JSONIOPlugin):
@@ -918,8 +925,8 @@ def create_parser():
 
     manager = parser.add_argument_group(
         'Webroot manager', description='This client is just a '
-        'sophisticated manager for $webroot/' +
-        challenges.HTTP01.URI_ROOT_PATH + '. You can (optionally) '
+        'sophisticated manager for $webroot/'
+        + challenges.HTTP01.URI_ROOT_PATH + '. You can (optionally) '
         'specify `--default_root`, and override per-vhost with '
         '`-d example.com:/var/www/other_html` syntax.',
     )
@@ -1170,8 +1177,8 @@ class TestLoader(unittest.TestLoader):
         return self.suiteClass([
             self.loadTestsFromTestCase(getattr(module, attr))
             for attr in dir(module)
-            if isinstance(getattr(module, attr), type) and
-            issubclass(getattr(module, attr), subcls)])
+            if isinstance(getattr(module, attr), type)
+            and issubclass(getattr(module, attr), subcls)])
 
 
 def test_suite(args, suite):
@@ -1299,8 +1306,8 @@ def valid_existing_cert(cert, vhosts, valid_min):
     new_sans = [vhost.name for vhost in vhosts]
     existing_sans = pyopenssl_cert_or_req_san(cert.wrapped)
     logger.debug('Existing SANs: %r, new: %r', existing_sans, new_sans)
-    return (set(existing_sans) == set(new_sans) and
-            not renewal_necessary(cert, valid_min))
+    return (set(existing_sans) == set(new_sans)
+            and not renewal_necessary(cert, valid_min))
 
 
 def check_or_generate_account_key(args, existing):
