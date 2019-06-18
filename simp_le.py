@@ -1355,8 +1355,8 @@ def registered_client(args, existing_account_key, existing_account_reg):
     return client
 
 
-def get_certr(client, order):
-    """Get Certificate Resource for specified CSR and authorizations."""
+def finalize_order(client, order):
+    """Finalize the specified order and return the order resource."""
     try:
         finalized_order = client.poll_and_finalize(order)
     except acme_errors.PollError as error:
@@ -1404,14 +1404,15 @@ def persist_new_data(args, existing_data):
     else:
         logger.info('Generating new certificate private key')
         key = ComparablePKey(gen_pkey(args.cert_key_size))
+
     csr = gen_csr(
         key.wrapped, [vhost.name.encode() for vhost in args.vhosts]
     )
-    csr_pem = OpenSSL.crypto.dump_certificate_request(
+    csr = OpenSSL.crypto.dump_certificate_request(
         OpenSSL.crypto.FILETYPE_PEM, csr
     )
 
-    order = client.new_order(csr_pem)
+    order = client.new_order(csr)
 
     authorizations = dict(
         [authorization.body.identifier.value, authorization]
@@ -1430,23 +1431,20 @@ def persist_new_data(args, existing_data):
         client.answer_challenge(challb, response)
 
     try:
-        certr = get_certr(client, order)
-        pems = list(split_pems(certr.fullchain_pem))
-
-        cert = jose.ComparableX509(OpenSSL.crypto.load_certificate(
-            OpenSSL.crypto.FILETYPE_PEM, pems[0]))
-
-        chain = []
-        for pem in pems[1:]:
-            chain.append(jose.ComparableX509(OpenSSL.crypto.load_certificate(
-                OpenSSL.crypto.FILETYPE_PEM, pem)))
+        order = finalize_order(client, order)
+        pems = list(split_pems(order.fullchain_pem))
 
         persist_data(args, existing_data, new_data=IOPlugin.Data(
             account_key=client.net.key,
             account_reg=client.net.account,
             key=key,
-            cert=cert,
-            chain=chain,
+            cert=jose.ComparableX509(OpenSSL.crypto.load_certificate(
+                OpenSSL.crypto.FILETYPE_PEM, pems[0])),
+            chain=[
+                jose.ComparableX509(OpenSSL.crypto.load_certificate(
+                    OpenSSL.crypto.FILETYPE_PEM, pem))
+                for pem in pems[1:]
+            ],
         ))
     except Error as error:
         persist_data(args, existing_data, new_data=IOPlugin.Data(
