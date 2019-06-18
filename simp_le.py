@@ -158,7 +158,7 @@ def gen_csr(pkey, domains, sig_hash='sha256'):
     return req
 
 
-class ComparablePKey(object):  # pylint: disable=too-few-public-methods
+class ComparablePKey:  # pylint: disable=too-few-public-methods
     """Comparable key.
 
     Suppose you have the following keys with the same material:
@@ -272,7 +272,7 @@ class Vhost(collections.namedtuple('Vhost', 'name root')):
         return cls(name=parts[0], root=parts[1])
 
 
-class IOPlugin(object):
+class IOPlugin:
     """Input/output plugin.
 
     In case of any problems, `persisted`, `load` and `save`
@@ -307,7 +307,7 @@ class IOPlugin(object):
         chain=None,
     )
 
-    def __init__(self, path, **dummy_kwargs):
+    def __init__(self, path):
         self.path = path
 
     @abc.abstractmethod
@@ -686,7 +686,7 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
 class UnitTestCase(unittest.TestCase):
     """simp_le unit test case."""
 
-    class AssertRaisesContext(object):
+    class AssertRaisesContext:
         """Context for assert_raises."""
         # pylint: disable=too-few-public-methods
 
@@ -748,7 +748,7 @@ class UnitTestCase(unittest.TestCase):
             logger.removeHandler(handler)
 
 
-class PluginIOTestMixin(object):
+class PluginIOTestMixin:
     """Common plugins tests."""
     # this is a test suite | pylint: disable=missing-docstring
 
@@ -1217,10 +1217,11 @@ def check_plugins_persist_all(ioplugins):
         persisted = IOPlugin.Data(*componentwise_or(
             persisted, IOPlugin.registered[plugin_name].persisted()))
 
-    not_persisted = set([
+    not_persisted = {
         component
         for component, persist in six.iteritems(persisted._asdict())
-        if not persist])
+        if not persist
+    }
     if not_persisted:
         raise Error('Selected IO plugins do not cover the following '
                     'components: {0}.'.format(', '.join(not_persisted)))
@@ -1500,12 +1501,12 @@ def main_with_exceptions(cli_args):
 
     if args.test:  # --test
         return test(args)
-    elif args.integration_test:  # --integration_test
+    if args.integration_test:  # --integration_test
         return integration_test(args)
-    elif args.help:  # --help
+    if args.help:  # --help
         parser.print_help()
         return EXIT_HELP_VERSION_OK
-    elif args.version:  # --version
+    if args.version:  # --version
         sys.stdout.write('%s %s\n' % (os.path.basename(sys.argv[0]), VERSION))
         return EXIT_HELP_VERSION_OK
 
