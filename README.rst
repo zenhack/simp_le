@@ -115,6 +115,7 @@ to do otherwise (e.g. security & serious bug fixes).
 
 * Upgrade acme to 0.34.x
 * Remove the `-f external.sh` feature
+* Add official support for Python 3.7
 
 0.14.0
 ++++++

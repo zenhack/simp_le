@@ -1,5 +1,5 @@
 # configuration for https://travis-ci.org
-dist: trusty
+dist: xenial
 sudo: required
 
 language: python
@@ -8,17 +8,19 @@ python:
   - "3.4"
   - "3.5"
   - "3.6"
+  - "3.7"
 env:
   - TEST_SUITE=simp_le_suite
 matrix:
+  fast_finish: true
   include:
-  - python: "2.7"
+  - python: "3.7"
     env: TEST_SUITE=lint_suite
-  - python: "3.6"
+  - python: "3.7"
     env: ARCH=amd64 TEST_SUITE=docker_suite FROM=alpine:3.7 IMAGE=zenhack/simp_le:$ARCH
-  - python: "3.6"
+  - python: "3.7"
     env: ARCH=arm64 TEST_SUITE=docker_suite FROM=multiarch/alpine:arm64-v3.7 IMAGE=zenhack/simp_le:$ARCH
-  - python: "3.6"
+  - python: "3.7"
     env: ARCH=arm TEST_SUITE=docker_suite FROM=multiarch/alpine:armhf-v3.7 IMAGE=zenhack/simp_le:$ARCH
   allow_failures:
   - env: ARCH=arm64 TEST_SUITE=docker_suite FROM=multiarch/alpine:arm64-v3.7 IMAGE=zenhack/simp_le:$ARCH
