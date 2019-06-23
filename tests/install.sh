@@ -20,9 +20,10 @@ setup_boulder() {
   docker_ip=$(ifconfig docker0 | grep "inet addr:" | cut -d: -f2 | awk '{ print $1}')
 
   export GOPATH=${HOME?}/go
-  git clone --depth=1 https://github.com/letsencrypt/boulder \
+  git clone https://github.com/letsencrypt/boulder \
     $GOPATH/src/github.com/letsencrypt/boulder
   cd $GOPATH/src/github.com/letsencrypt/boulder
+  git checkout release-2019-06-17
   docker-compose pull
   docker-compose build
   docker-compose run \
