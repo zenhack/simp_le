@@ -8,6 +8,7 @@ Simple `Let’s Encrypt`_ client.
 .. code:: shell
 
     simp_le --email you@example.com -f account_key.json \
+      -f account_reg.json \
       -f fullchain.pem -f key.pem \
       -d example.com -d www.example.com --default_root /var/www/html \
       -d example.net:/var/www/other_html
@@ -50,8 +51,7 @@ Manifest
 
 9.  Flexible storage capabilities. Built-in
     ``simp_le -f fullchain.pem    -f key.pem``,
-    ``simp_le -f chain.pem -f cert.pem -f key.pem``, etc. Extensions
-    through ``simp_le -f external.sh``.
+    ``simp_le -f chain.pem -f cert.pem -f key.pem``, etc.
 
 10. Do not allow specifying output file paths. Users should symlink if
     necessary!
@@ -63,7 +63,7 @@ Manifest
     -  ``1`` if renewal not necessary;
     -  ``2`` in case of errors.
 
-12. ``--server`` (support multiple CAs).
+12. ``--server`` (support multiple ACME v2 CAs).
 
 13. Support for revocation.
 
@@ -114,7 +114,14 @@ to do otherwise (e.g. security & serious bug fixes).
 0.15.0 (Upcoming)
 ++++++
 
+* Switch from ACME v1 to ACME v2 endpoints support.
+  Support for ACME v1 endpoints has been dropped entirely.
+* Persist account_reg.json in addition to account_key.json, and
+  recovers missing registration info if needed.
 * Upgrade acme to 0.34.x
+* Remove the `-f external.sh` feature
+* Add official support for Python 3.7
+* Drop official support for Python 2 and 3.4
 
 0.14.0
 ++++++

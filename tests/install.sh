@@ -6,7 +6,7 @@
 # from some of the commands in this file (#39).
 set -xe
 
-SERVER='http://10.77.77.1:4000/directory'
+SERVER='http://10.77.77.1:4001/directory'
 PORT=5002
 
 setup_docker_compose () {

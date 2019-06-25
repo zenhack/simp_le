@@ -44,7 +44,6 @@ import six
 from six.moves import zip  # pylint: disable=redefined-builtin
 
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 import josepy as jose
@@ -67,7 +66,7 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 VERSION = pkg_resources.require('simp_le-client')[0].version
 URL = 'https://github.com/zenhack/simp_le'
 
-LE_PRODUCTION_URI = 'https://acme-v01.api.letsencrypt.org/directory'
+LE_PRODUCTION_URI = 'https://acme-v02.api.letsencrypt.org/directory'
 # https://letsencrypt.org/2015/11/09/why-90-days.html
 LE_CERT_VALIDITY = 90 * 24 * 60 * 60
 DEFAULT_VALID_MIN = LE_CERT_VALIDITY / 3
@@ -79,6 +78,31 @@ EXIT_ERROR = 2
 
 class Error(Exception):
     """simp_le error."""
+
+
+_PEM_RE_LABELCHAR = r'[\x21-\x2c\x2e-\x7e]'
+_PEM_RE = re.compile(
+    (r"""
+^-----BEGIN\ ((?:%s(?:[- ]?%s)*)?)\s*-----$
+.*?
+^-----END\ \1-----\s*""" % (_PEM_RE_LABELCHAR, _PEM_RE_LABELCHAR)).encode(),
+    re.DOTALL | re.MULTILINE | re.VERBOSE)
+_PEMS_SEP = b'\n'
+
+
+def split_pems(buf):
+    r"""Split buffer comprised of PEM encoded (RFC 7468).
+
+    >>> x = b'\n-----BEGIN FOO BAR-----\nfoo\nbar\n-----END FOO BAR-----'
+    >>> len(list(split_pems(x * 3)))
+    3
+    >>> list(split_pems(b''))
+    []
+    """
+    if isinstance(buf, str):
+        buf = buf.encode()
+    for match in _PEM_RE.finditer(buf):
+        yield match.group(0)
 
 
 def gen_pkey(bits):
@@ -134,7 +158,7 @@ def gen_csr(pkey, domains, sig_hash='sha256'):
     return req
 
 
-class ComparablePKey(object):  # pylint: disable=too-few-public-methods
+class ComparablePKey:  # pylint: disable=too-few-public-methods
     """Comparable key.
 
     Suppose you have the following keys with the same material:
@@ -182,6 +206,7 @@ class ComparablePKey(object):  # pylint: disable=too-few-public-methods
 
     Internal implementation is not optimized for performance!
     """
+
     def __init__(self, wrapped):
         self.wrapped = wrapped
 
@@ -247,7 +272,7 @@ class Vhost(collections.namedtuple('Vhost', 'name root')):
         return cls(name=parts[0], root=parts[1])
 
 
-class IOPlugin(object):
+class IOPlugin:
     """Input/output plugin.
 
     In case of any problems, `persisted`, `load` and `save`
@@ -257,21 +282,32 @@ class IOPlugin(object):
     """
     __metaclass__ = abc.ABCMeta
 
-    Data = collections.namedtuple('IOPluginData', 'account_key key cert chain')
+    Data = collections.namedtuple(
+        'IOPluginData',
+        'account_key account_reg key cert chain'
+    )
     """Plugin data.
 
     Unless otherwise stated, plugin data components are typically
     filled with the following data:
 
     - for `account_key`: private account key, an instance of `acme.jose.JWK`
+    - for `account_reg`: account registration info, an instance of
+    `acme.messages.RegistrationResource`
     - for `key`: private key, an instance of `OpenSSL.crypto.PKey`
     - for `cert`: certificate, an instance of `OpenSSL.crypto.X509`
     - for `chain`: certificate chain, a list of `OpenSSL.crypto.X509` instances
     """
 
-    EMPTY_DATA = Data(account_key=None, key=None, cert=None, chain=None)
+    EMPTY_DATA = Data(
+        account_key=None,
+        account_reg=None,
+        key=None,
+        cert=None,
+        chain=None,
+    )
 
-    def __init__(self, path, **dummy_kwargs):
+    def __init__(self, path):
         self.path = path
 
     @abc.abstractmethod
@@ -319,8 +355,8 @@ class IOPlugin(object):
         def init_and_reg(plugin_cls):
             """Initialize plugin class and register."""
             plugin = plugin_cls(**kwargs)
-            assert (os.path.sep not in plugin.path and
-                    plugin.path not in ('.', '..'))
+            assert (os.path.sep not in plugin.path
+                    and plugin.path not in ('.', '..'))
             cls.registered[plugin.path] = plugin
             return plugin_cls
         return init_and_reg
@@ -375,24 +411,23 @@ class JWKIOPlugin(IOPlugin):  # pylint: disable=abstract-method
         return jose.JWKRSA.json_loads(data)
 
     @classmethod
-    def load_pem_jwk(cls, data):
-        """Load JWK encoded as PEM."""
-        return jose.JWKRSA(key=serialization.load_pem_private_key(
-            data, password=None, backend=default_backend()))
-
-    @classmethod
     def dump_jwk(cls, jwk):
         """Dump JWK."""
         return jwk.json_dumps()
 
+
+class JSONIOPlugin(IOPlugin):  # pylint: disable=abstract-method
+    """IO Plugin that uses JSON."""
+
     @classmethod
-    def dump_pem_jwk(cls, data):
-        """Dump JWK as PEM."""
-        return data.key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption(),
-        ).strip()
+    def load_json(cls, data):
+        """Load JSON."""
+        return messages.RegistrationResource.json_loads(data)
+
+    @classmethod
+    def dump_json(cls, json):
+        """Dump JSON."""
+        return json.json_dumps()
 
 
 class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
@@ -402,25 +437,9 @@ class OpenSSLIOPlugin(IOPlugin):  # pylint: disable=abstract-method
       typ: One of `OpenSSL.crypto.FILETYPE_*`, used in loading/dumping.
     """
 
-    _PEMS_SEP = b'\n'
-
     def __init__(self, typ=OpenSSL.crypto.FILETYPE_PEM, **kwargs):
         self.typ = typ
         super(OpenSSLIOPlugin, self).__init__(**kwargs)
-
-    @staticmethod
-    def split_pems(data):
-        """Split buffer comprised of PEM encoded (RFC 7468)."""
-        pem_re_labelchar = r'[\x21-\x2c\x2e-\x7e]'
-        pem_re = re.compile(
-            (r"""
-        ^-----BEGIN\ ((?:%s(?:[- ]?%s)*)?)\s*-----$
-        .*?
-        ^-----END\ \1-----\s*""" % (pem_re_labelchar,
-                                    pem_re_labelchar)).encode(),
-            re.DOTALL | re.MULTILINE | re.VERBOSE)
-        for match in pem_re.finditer(data):
-            yield match.group(0)
 
     def load_key(self, data):
         """Load private key."""
@@ -458,11 +477,18 @@ class AccountKey(FileIOPlugin, JWKIOPlugin):
     WRITE_MODE = 'w'
 
     def persisted(self):
-        return self.Data(account_key=True, key=False, cert=False, chain=False)
+        return self.Data(
+            account_key=True,
+            account_reg=False,
+            key=False,
+            cert=False,
+            chain=False,
+        )
 
     def load_from_content(self, content):
         return self.Data(
             account_key=self.load_jwk(content),
+            account_reg=None,
             key=None,
             cert=None,
             chain=None,
@@ -473,17 +499,55 @@ class AccountKey(FileIOPlugin, JWKIOPlugin):
         return self.save_to_file(key)
 
 
+@IOPlugin.register(path='account_reg.json')
+class AccountRegistration(FileIOPlugin, JSONIOPlugin):
+    """Account registration IO Plugin using JSON."""
+
+    # this is not a binary file
+    READ_MODE = 'r'
+    WRITE_MODE = 'w'
+
+    def persisted(self):
+        return self.Data(
+            account_key=False,
+            account_reg=True,
+            key=False,
+            cert=False,
+            chain=False,
+        )
+
+    def load_from_content(self, content):
+        return self.Data(
+            account_key=None,
+            account_reg=self.load_json(content),
+            key=None,
+            cert=None,
+            chain=None,
+        )
+
+    def save(self, data):
+        reg = self.dump_json(data.account_reg)
+        return self.save_to_file(reg)
+
+
 @IOPlugin.register(path='key.der', typ=OpenSSL.crypto.FILETYPE_ASN1)
 @IOPlugin.register(path='key.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
 class KeyFile(FileIOPlugin, OpenSSLIOPlugin):
     """Private key file plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=True, cert=False, chain=False)
+        return self.Data(
+            account_key=False,
+            account_reg=False,
+            key=True,
+            cert=False,
+            chain=False,
+        )
 
     def load_from_content(self, content):
         return self.Data(
             account_key=None,
+            account_reg=None,
             key=self.load_key(content),
             cert=None,
             chain=None,
@@ -500,11 +564,18 @@ class CertFile(FileIOPlugin, OpenSSLIOPlugin):
     """Certificate file plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=False, cert=True, chain=False)
+        return self.Data(
+            account_key=False,
+            account_reg=False,
+            key=False,
+            cert=True,
+            chain=False,
+        )
 
     def load_from_content(self, content):
         return self.Data(
             account_key=None,
+            account_reg=None,
             key=None,
             cert=self.load_cert(content),
             chain=None,
@@ -520,15 +591,22 @@ class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
     """Certificate chain plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=False, cert=False, chain=True)
+        return self.Data(
+            account_key=False,
+            account_reg=False,
+            key=False,
+            cert=False,
+            chain=True,
+        )
 
     def load_from_content(self, content):
-        pems = list(self.split_pems(content))
+        pems = list(split_pems(content))
         if not pems:
             raise Error("No PEM encoded message was found in {0}; "
                         "at least 1 was expected.".format(self.path))
         return self.Data(
             account_key=None,
+            account_reg=None,
             key=None,
             cert=None,
             chain=[self.load_cert(cert) for cert in pems[0:]],
@@ -536,7 +614,7 @@ class ChainFile(FileIOPlugin, OpenSSLIOPlugin):
 
     def save(self, data):
         pems = [self.dump_cert(cert) for cert in data.chain]
-        return self.save_to_file(self._PEMS_SEP.join(pems))
+        return self.save_to_file(_PEMS_SEP.join(pems))
 
 
 @IOPlugin.register(path='fullchain.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
@@ -544,16 +622,23 @@ class FullChainFile(FileIOPlugin, OpenSSLIOPlugin):
     """Full chain file plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=False, cert=True, chain=True)
+        return self.Data(
+            account_key=False,
+            account_reg=False,
+            key=False,
+            cert=True,
+            chain=True,
+        )
 
     def load_from_content(self, content):
-        pems = list(self.split_pems(content))
+        pems = list(split_pems(content))
         if len(pems) < 2:
             raise Error("Not enough PEM encoded messages were found in {0}; "
                         "at least 2 were expected, found {1}."
                         .format(self.path, len(pems)))
         return self.Data(
             account_key=None,
+            account_reg=None,
             key=None,
             cert=self.load_cert(pems[0]),
             chain=[self.load_cert(cert) for cert in pems[1:]],
@@ -562,7 +647,7 @@ class FullChainFile(FileIOPlugin, OpenSSLIOPlugin):
     def save(self, data):
         pems = [self.dump_cert(data.cert)]
         pems.extend(self.dump_cert(cert) for cert in data.chain)
-        return self.save_to_file(self._PEMS_SEP.join(pems))
+        return self.save_to_file(_PEMS_SEP.join(pems))
 
 
 @IOPlugin.register(path='full.pem', typ=OpenSSL.crypto.FILETYPE_PEM)
@@ -570,16 +655,23 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
     """Private key, certificate and chain plugin."""
 
     def persisted(self):
-        return self.Data(account_key=False, key=True, cert=True, chain=True)
+        return self.Data(
+            account_key=False,
+            account_reg=False,
+            key=True,
+            cert=True,
+            chain=True,
+        )
 
     def load_from_content(self, content):
-        pems = list(self.split_pems(content))
+        pems = list(split_pems(content))
         if len(pems) < 3:
             raise Error("Not enough PEM encoded messages were found in {0}; "
                         "at least 3 were expected, found {1}."
                         .format(self.path, len(pems)))
         return self.Data(
             account_key=None,
+            account_reg=None,
             key=self.load_key(pems[0]),
             cert=self.load_cert(pems[1]),
             chain=[self.load_cert(cert) for cert in pems[2:]],
@@ -588,119 +680,13 @@ class FullFile(FileIOPlugin, OpenSSLIOPlugin):
     def save(self, data):
         pems = [self.dump_key(data.key), self.dump_cert(data.cert)]
         pems.extend(self.dump_cert(cert) for cert in data.chain)
-        return self.save_to_file(self._PEMS_SEP.join(pems))
-
-
-@IOPlugin.register(path='external.sh', typ=OpenSSL.crypto.FILETYPE_PEM)
-class ExternalIOPlugin(JWKIOPlugin, OpenSSLIOPlugin):
-    """External IO Plugin.
-
-    This plugin executes script that complies with the
-    "persisted|load|save protocol":
-
-    - whenever the script is called with `persisted` as the first
-      argument, it should send to STDOUT a single line consisting of a
-      subset of four keywords: `account_key`, `key`, `cert`, `chain`
-      (in any order, separated by whitespace);
-
-    - whenever the script is called with `load` as the first argument it
-      shall write to STDOUT all persisted data as PEM encoded strings in
-      the following order: account_key, key, certificate, certificates
-      in the chain (from leaf to root). If some data is not persisted,
-      it must be skipped in the output;
-
-    - whenever the script is called with `save` as the first argument,
-      it should accept data from STDIN and persist it. Data is encoded
-      and ordered in the same way as in the `load` case.
-    """
-
-    @property
-    def script(self):
-        """Path to the script."""
-        return os.path.join('.', self.path)
-
-    def get_output_or_fail(self, command):
-        """Get output or throw an exception in case of errors."""
-        try:
-            proc = subprocess.Popen(
-                [self.script, command], stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE)
-        except (OSError, subprocess.CalledProcessError) as error:
-            raise Error('Failed to execute external script: {0}'.format(error))
-
-        stdout, stderr = proc.communicate()
-        if stderr is not None:
-            logger.error('STDERR: %s', stderr)
-        if proc.wait():
-            raise Error('External script exited with non-zero code: {0}'
-                        .format(proc.returncode))
-
-        # Do NOT log `stdout` as it might contain secret material (in
-        # case key is persisted)
-        return stdout
-
-    def persisted(self):
-        """Call the external script and see which data is persisted."""
-        output = self.get_output_or_fail('persisted').split()
-        return self.Data(
-            account_key=(b'account_key' in output),
-            key=(b'key' in output),
-            cert=(b'cert' in output),
-            chain=(b'chain' in output),
-        )
-
-    def load(self):
-        """Call the external script to retrieve persisted data."""
-        pems = list(self.split_pems(self.get_output_or_fail('load')))
-        if not pems:
-            return self.EMPTY_DATA
-        persisted = self.persisted()
-
-        account_key = self.load_pem_jwk(
-            pems.pop(0)) if persisted.account_key else None
-        key = self.load_key(pems.pop(0)) if persisted.key else None
-        cert = self.load_cert(pems.pop(0)) if persisted.cert else None
-        chain = ([self.load_cert(cert_data) for cert_data in pems]
-                 if persisted.chain else None)
-        return self.Data(account_key=account_key, key=key,
-                         cert=cert, chain=chain)
-
-    def save(self, data):
-        """Call the external script and send data to be persisted to STDIN."""
-        persisted = self.persisted()
-        output = []
-        if persisted.account_key:
-            output.append(self.dump_pem_jwk(data.account_key))
-        if persisted.key:
-            output.append(self.dump_key(data.key))
-        if persisted.cert:
-            output.append(self.dump_cert(data.cert))
-        if persisted.chain:
-            output.extend(self.dump_cert(cert) for cert in data.chain)
-
-        logger.info('Calling `%s save` and piping data through', self.script)
-        try:
-            proc = subprocess.Popen(
-                [self.script, 'save'], stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE)
-        except OSError as error:
-            logger.exception(error)
-            raise Error(
-                'There was a problem executing external IO plugin script')
-        stdout, stderr = proc.communicate(self._PEMS_SEP.join(output))
-        if stdout is not None:
-            logger.debug('STDOUT: %s', stdout)
-        if stderr is not None:
-            logger.error('STDERR: %s', stderr)
-        if proc.wait():
-            raise Error('External script exited with non-zero code: {0}'
-                        .format(proc.returncode))
+        return self.save_to_file(_PEMS_SEP.join(pems))
 
 
 class UnitTestCase(unittest.TestCase):
     """simp_le unit test case."""
 
-    class AssertRaisesContext(object):
+    class AssertRaisesContext:
         """Context for assert_raises."""
         # pylint: disable=too-few-public-methods
 
@@ -762,19 +748,7 @@ class UnitTestCase(unittest.TestCase):
             logger.removeHandler(handler)
 
 
-class SplitPemsTest(UnitTestCase):
-    """split_pems static method test."""
-    # this is a test suite | pylint: disable=missing-docstring
-
-    def test_split_pems(self):
-        pem = b'\n-----BEGIN FOO BAR-----\nfoo\nbar\n-----END FOO BAR-----'
-        result = len(list(OpenSSLIOPlugin.split_pems(pem * 3)))
-        self.assertEqual(result, 3)
-        result = list(OpenSSLIOPlugin.split_pems(b''))
-        self.assertEqual(result, [])
-
-
-class PluginIOTestMixin(object):
+class PluginIOTestMixin:
     """Common plugins tests."""
     # this is a test suite | pylint: disable=missing-docstring
 
@@ -789,6 +763,7 @@ class PluginIOTestMixin(object):
                 public_exponent=65537, key_size=1024,
                 backend=default_backend(),
             )),
+            account_reg=messages.NewRegistration.from_data(),
             key=ComparablePKey(raw_key),
             cert=jose.ComparableX509(crypto_util.gen_ss_cert(raw_key, ['a'])),
             chain=[
@@ -871,57 +846,6 @@ class FullFileTest(ChainFileIOPluginTestMixin, UnitTestCase):
     PLUGIN_CLS = FullFile
 
 
-class ExternalIOPluginTest(PluginIOTestMixin, UnitTestCase):
-    """Tests for ExternalIOPlugin."""
-    # this is a test suite | pylint: disable=missing-docstring
-    PLUGIN_CLS = ExternalIOPlugin
-
-    def save_script(self, contents):
-        with open(self.path, 'w') as external_plugin_file:
-            external_plugin_file.write(contents)
-        os.chmod(self.path, 0o700)
-
-    def test_no_persisted_empty(self):
-        self.save_script('#!/bin/sh')
-        self.assertEqual(IOPlugin.EMPTY_DATA, self.plugin.load())
-
-    def test_missing_path_raises_error(self):
-        self.assert_raises_error(
-            'Failed to execute external script', self.plugin.load)
-
-    def test_load_nonzero_raises_error(self):
-        self.save_script('#!/bin/sh\nfalse')
-        self.assert_raises_error(
-            '.*exited with non-zero code: 1', self.plugin.load)
-
-    def test_save_nonzero_raises_error(self):
-        self.save_script('#!/bin/sh\nfalse')
-        self.assert_raises_error(
-            '.*exited with non-zero code: 1', self.plugin.save, self.key_data)
-
-    def one_file_script(self, persisted):
-        path = os.path.join(self.root, 'pem')
-        self.save_script("""\
-#!/bin/sh
-case $1 in
-  save) cat - > {path};;
-  load) [ ! -f {path} ] ||  cat {path};;
-  persisted) echo {persisted};;
-esac
-""".format(path=path, persisted=persisted))
-        return path
-
-    def test_it(self):
-        path = self.one_file_script('cert chain key account_key')
-        # not yet persisted
-        self.assertEqual(IOPlugin.EMPTY_DATA, self.plugin.load())
-        # save some data
-        self.plugin.save(self.all_data)
-        self.assertTrue(os.path.exists(path))
-        # loading should return the persisted data back in
-        self.assertEqual(self.all_data, self.plugin.load())
-
-
 class PortNumWarningTest(UnitTestCase):
     """Tests relating to the port number warning."""
 
@@ -1001,8 +925,8 @@ def create_parser():
 
     manager = parser.add_argument_group(
         'Webroot manager', description='This client is just a '
-        'sophisticated manager for $webroot/' +
-        challenges.HTTP01.URI_ROOT_PATH + '. You can (optionally) '
+        'sophisticated manager for $webroot/'
+        + challenges.HTTP01.URI_ROOT_PATH + '. You can (optionally) '
         'specify `--default_root`, and override per-vhost with '
         '`-d example.com:/var/www/other_html` syntax.',
     )
@@ -1021,9 +945,9 @@ def create_parser():
         '-f', dest='ioplugins', action='append', default=[],
         metavar='PLUGIN', choices=sorted(IOPlugin.registered),
         help='Input/output plugin of choice, can be specified multiple '
-        'times and, in fact, it should be specified as many times as it '
-        'is necessary to cover all components: key, certificate, chain. '
-        'Allowed values: %s.' % ', '.join(sorted(IOPlugin.registered)),
+        'times and, in fact, it should be specified as many times as it is '
+        'necessary to cover all components: key, registration, certificate, '
+        'chain. Allowed values: %s.' % ', '.join(sorted(IOPlugin.registered)),
     )
     io_group.add_argument(
         '--cert_key_size', type=int, default=4096, metavar='BITS',
@@ -1084,11 +1008,16 @@ def supported_challb(authorization):
     Returns:
       `acme.messages.ChallengeBody` with `http-01` challenge or `None`.
     """
-    for combo in authorization.body.combinations:
-        first_challb = authorization.body.challenges[combo[0]]
-        if len(combo) == 1 and isinstance(
-                first_challb.chall, challenges.HTTP01):
-            return first_challb
+    if authorization.body.combinations is None:
+        for challenge in authorization.body.challenges:
+            if isinstance(challenge.chall, challenges.HTTP01):
+                return challenge
+    else:
+        for combo in authorization.body.combinations:
+            first_challb = authorization.body.challenges[combo[0]]
+            if len(combo) == 1 and isinstance(
+                    first_challb.chall, challenges.HTTP01):
+                return first_challb
     return None
 
 
@@ -1248,8 +1177,8 @@ class TestLoader(unittest.TestLoader):
         return self.suiteClass([
             self.loadTestsFromTestCase(getattr(module, attr))
             for attr in dir(module)
-            if isinstance(getattr(module, attr), type) and
-            issubclass(getattr(module, attr), subcls)])
+            if isinstance(getattr(module, attr), type)
+            and issubclass(getattr(module, attr), subcls)])
 
 
 def test_suite(args, suite):
@@ -1278,15 +1207,21 @@ def integration_test(args):
 def check_plugins_persist_all(ioplugins):
     """Do plugins cover all components (key/cert/chain)?"""
     persisted = IOPlugin.Data(
-        account_key=False, key=False, cert=False, chain=False)
+        account_key=False,
+        account_reg=False,
+        key=False,
+        cert=False,
+        chain=False,
+    )
     for plugin_name in ioplugins:
         persisted = IOPlugin.Data(*componentwise_or(
             persisted, IOPlugin.registered[plugin_name].persisted()))
 
-    not_persisted = set([
+    not_persisted = {
         component
         for component, persist in six.iteritems(persisted._asdict())
-        if not persist])
+        if not persist
+    }
     if not_persisted:
         raise Error('Selected IO plugins do not cover the following '
                     'components: {0}.'.format(', '.join(not_persisted)))
@@ -1372,8 +1307,8 @@ def valid_existing_cert(cert, vhosts, valid_min):
     new_sans = [vhost.name for vhost in vhosts]
     existing_sans = pyopenssl_cert_or_req_san(cert.wrapped)
     logger.debug('Existing SANs: %r, new: %r', existing_sans, new_sans)
-    return (set(existing_sans) == set(new_sans) and
-            not renewal_necessary(cert, valid_min))
+    return (set(existing_sans) == set(new_sans)
+            and not renewal_necessary(cert, valid_min))
 
 
 def check_or_generate_account_key(args, existing):
@@ -1388,35 +1323,43 @@ def check_or_generate_account_key(args, existing):
     return existing
 
 
-def registered_client(args, existing_account_key):
-    """Create ACME client, register if necessary."""
+def registered_client(args, existing_account_key, existing_account_reg):
+    """Return an ACME v2 client from account key and registration.
+    Register a new account or recover missing registration if necessary."""
     key = check_or_generate_account_key(args, existing_account_key)
     net = acme_client.ClientNetwork(key, user_agent=args.user_agent)
-    client = acme_client.Client(directory=args.server, key=key, net=net)
-    if args.email is None:
-        logger.warning('--email was not provided; ACME CA will have no '
-                       'way of contacting you.')
-    new_reg = messages.NewRegistration.from_data(email=args.email)
-    try:
-        regr = client.register(new_reg)
-    except acme_errors.ConflictError as error:
-        logger.debug('Client already registered: %s', error.location)
+    directory = messages.Directory.from_json(net.get(args.server).json())
+    client = acme_client.ClientV2(directory, net=net)
+
+    if existing_account_reg is None:
+        if args.email is None:
+            logger.warning('--email was not provided; ACME CA will have no '
+                           'way of contacting you.')
+        new_reg = messages.NewRegistration.from_data(email=args.email)
+
+        if "terms_of_service" in client.directory.meta:
+            logger.info("By using simp_le, you implicitly agree "
+                        "to the CA's terms of service: %s",
+                        client.directory.meta.terms_of_service)
+            new_reg = new_reg.update(terms_of_service_agreed=True)
+
+        try:
+            client.new_account(new_reg)
+        except acme_errors.ConflictError as error:
+            logger.debug('Client already registered: %s', error.location)
+            existing_reg = messages.RegistrationResource(uri=error.location)
+            existing_reg = client.query_registration(existing_reg)
+            client.update_registration(existing_reg)
     else:
-        if regr.terms_of_service is not None:
-            logger.info("By using simp_le, you implicitly agree to the "
-                        "CA's terms of service: %s", regr.terms_of_service)
-            client.agree_to_tos(regr)
+        client.update_registration(existing_account_reg)
 
     return client
 
 
-def get_certr(client, csr, authorizations):
-    """Get Certificate Resource for specified CSR and authorizations."""
+def finalize_order(client, order):
+    """Finalize the specified order and return the order resource."""
     try:
-        certr, _ = client.poll_and_request_issuance(
-            jose.ComparableX509(csr), authorizations.values(),
-            # https://github.com/letsencrypt/letsencrypt/issues/1719
-            max_attempts=(10 * len(authorizations)))
+        finalized_order = client.poll_and_finalize(order)
     except acme_errors.PollError as error:
         if error.timeout:
             logger.error(
@@ -1424,29 +1367,28 @@ def get_certr(client, csr, authorizations):
                 'challenge(s) for the following authorizations: %s',
                 ', '.join(authzr.uri for _, authzr in error.exhausted)
             )
-
-        invalid = [authzr for authzr in six.itervalues(error.updated)
-                   if authzr.body.status == messages.STATUS_INVALID]
-        if invalid:
-            logger.error("CA marked some of the authorizations as invalid, "
-                         "which likely means it could not access "
-                         "http://example.com/.well-known/acme-challenge/X. "
-                         "Did you set correct path in -d example.com:path "
-                         "or --default_root? Are all your domains accessible "
-                         "from the internet? Please check your domains' DNS "
-                         "entries, your host's network/firewall setup and "
-                         "your webserver config. If a domain's DNS entry has "
-                         "both A and AAAA fields set up, some CAs such as "
-                         "Let's Encrypt will perform the challenge validation "
-                         "over IPv6. If your DNS provider does not answer "
-                         "correctly to CAA records request, Let's Encrypt "
-                         "won't issue a certificate for your domain (see "
-                         "https://letsencrypt.org/docs/caa/). Failing "
-                         "authorizations: %s",
-                         ', '.join(authzr.uri for authzr in invalid))
-
         raise Error('Challenge validation has failed, see error log.')
-    return certr
+
+    except acme_errors.ValidationError as error:
+        logger.error("CA marked some of the authorizations as invalid, "
+                     "which likely means it could not access "
+                     "http://example.com/.well-known/acme-challenge/X. "
+                     "Did you set correct path in -d example.com:path "
+                     "or --default_root? Are all your domains accessible "
+                     "from the internet? Please check your domains' DNS "
+                     "entries, your host's network/firewall setup and "
+                     "your webserver config. If a domain's DNS entry has "
+                     "both A and AAAA fields set up, some CAs such as "
+                     "Let's Encrypt will perform the challenge validation "
+                     "over IPv6. If your DNS provider does not answer "
+                     "correctly to CAA records request, Let's Encrypt "
+                     "won't issue a certificate for your domain (see "
+                     "https://letsencrypt.org/docs/caa/). Failing "
+                     "authorizations: %s",
+                     ', '.join(authzr.uri for authzr in error.failed_authzrs))
+        raise Error('Challenge validation has failed, see error log.')
+
+    return finalized_order
 
 
 def persist_new_data(args, existing_data):
@@ -1454,11 +1396,28 @@ def persist_new_data(args, existing_data):
     roots = compute_roots(args.vhosts, args.default_root)
     logger.debug('Computed roots: %r', roots)
 
-    client = registered_client(args, existing_data.account_key)
+    client = registered_client(
+        args, existing_data.account_key, existing_data.account_reg)
+
+    if args.reuse_key and existing_data.key is not None:
+        logger.info('Reusing existing certificate private key')
+        key = existing_data.key
+    else:
+        logger.info('Generating new certificate private key')
+        key = ComparablePKey(gen_pkey(args.cert_key_size))
+
+    csr = gen_csr(
+        key.wrapped, [vhost.name.encode() for vhost in args.vhosts]
+    )
+    csr = OpenSSL.crypto.dump_certificate_request(
+        OpenSSL.crypto.FILETYPE_PEM, csr
+    )
+
+    order = client.new_order(csr)
 
     authorizations = dict(
-        (vhost.name, client.request_domain_challenges(vhost.name))
-        for vhost in args.vhosts
+        [authorization.body.identifier.value, authorization]
+        for authorization in order.authorizations
     )
     if any(supported_challb(auth) is None
            for auth in six.itervalues(authorizations)):
@@ -1467,26 +1426,35 @@ def persist_new_data(args, existing_data):
 
     for name, auth in six.iteritems(authorizations):
         challb = supported_challb(auth)
-        response, validation = challb.response_and_validation(client.key)
+        response, validation = challb.response_and_validation(client.net.key)
         save_validation(roots[name], challb, validation)
 
         client.answer_challenge(challb, response)
 
-    if args.reuse_key and existing_data.key is not None:
-        logger.info('Reusing existing certificate private key')
-        key = existing_data.key
-    else:
-        logger.info('Generating new certificate private key')
-        key = ComparablePKey(gen_pkey(args.cert_key_size))
-    csr = gen_csr(key.wrapped, [vhost.name.encode() for vhost in args.vhosts])
     try:
-        certr = get_certr(client, csr, authorizations)
+        order = finalize_order(client, order)
+        pems = list(split_pems(order.fullchain_pem))
+
         persist_data(args, existing_data, new_data=IOPlugin.Data(
-            account_key=client.key, key=key,
-            cert=certr.body, chain=client.fetch_chain(certr)))
+            account_key=client.net.key,
+            account_reg=client.net.account,
+            key=key,
+            cert=jose.ComparableX509(OpenSSL.crypto.load_certificate(
+                OpenSSL.crypto.FILETYPE_PEM, pems[0])),
+            chain=[
+                jose.ComparableX509(OpenSSL.crypto.load_certificate(
+                    OpenSSL.crypto.FILETYPE_PEM, pem))
+                for pem in pems[1:]
+            ],
+        ))
     except Error as error:
         persist_data(args, existing_data, new_data=IOPlugin.Data(
-            account_key=client.key, key=None, cert=None, chain=None))
+            account_key=client.net.key,
+            account_reg=client.net.account,
+            key=None,
+            cert=None,
+            chain=None,
+        ))
         raise error
     finally:
         for name, auth in six.iteritems(authorizations):
@@ -1500,9 +1468,9 @@ def revoke(args):
     if existing_data.cert is None:
         raise Error('No existing certificate')
 
-    key = check_or_generate_account_key(args, existing_data.account_key)
-    net = acme_client.ClientNetwork(key, user_agent=args.user_agent)
-    client = acme_client.Client(directory=args.server, key=key, net=net)
+    client = registered_client(
+        args, existing_data.account_key, existing_data.account_reg)
+
     client.revoke(existing_data.cert, rsn=0)
     return EXIT_REVOKE_OK
 
@@ -1533,12 +1501,12 @@ def main_with_exceptions(cli_args):
 
     if args.test:  # --test
         return test(args)
-    elif args.integration_test:  # --integration_test
+    if args.integration_test:  # --integration_test
         return integration_test(args)
-    elif args.help:  # --help
+    if args.help:  # --help
         parser.print_help()
         return EXIT_HELP_VERSION_OK
-    elif args.version:  # --version
+    if args.version:  # --version
         sys.stdout.write('%s %s\n' % (os.path.basename(sys.argv[0]), VERSION))
         return EXIT_HELP_VERSION_OK
 
@@ -1614,19 +1582,23 @@ class MainTest(UnitTestCase):
         test_args = [
             '',  # no args - no good
             '--bar',  # unrecognized
-            '-f account_key.json -f key.pem -f fullchain.pem',  # no vhosts
+            # no vhosts
+            '-f account_key.json -f account_reg.json '
+            '-f key.pem -f fullchain.pem',
             # no root
-            '-f account_key.json -f key.pem -f fullchain.pem -d example.com',
+            '-f account_key.json -f account_reg.json '
+            '-f key.pem -f fullchain.pem -d example.com',
             # no root with multiple domains
-            '-f account_key.json -f key.pem -f fullchain.pem '
-            '-d example.com:public_html  -d www.example.com',
+            '-f account_key.json -f account_reg.json -f key.pem '
+            '-f fullchain.pem -d example.com:public_html  -d www.example.com',
             # invalid email
-            '-f account_key.json -f key.pem -f fullchain.pem '
-            '-d example.com:public_html --email @wrong.com',
+            '-f account_key.json -f account_reg.json -f key.pem '
+            '-f fullchain.pem -d example.com:public_html --email @wrong.com',
         ]
         # missing plugin coverage
         test_args.extend(['-d example.com:public_html %s' % rest for rest in [
             '-f account_key.json',
+            '-f account_reg.json'
             '-f key.pem',
             '-f account_key.json -f key.pem',
             '-f key.pem -f cert.pem',
@@ -1656,12 +1628,12 @@ class IntegrationTests(unittest.TestCase):
 
     Prerequisites:
     - /etc/hosts:127.0.0.1 le.wtf
-    - Boulder running on 10.77.77.1:4000 (with Docker)
+    - Boulder running on 10.77.77.1:4001 (with Docker)
     - Boulder verifying http-01 on port 5002
     """
     # this is a test suite | pylint: disable=missing-docstring
 
-    SERVER = 'http://10.77.77.1:4000/directory'
+    SERVER = 'http://10.77.77.1:4001/directory'
 
     @classmethod
     def _run(cls, cmd):
@@ -1697,9 +1669,9 @@ class IntegrationTests(unittest.TestCase):
     def test_it(self):
         webroot = os.path.join(os.getcwd(), 'public_html')
         cmd = ["simp_le", "-v", "--server", (self.SERVER),
-               "-f", "account_key.json", "-f", "key.pem",
-               "-f", "full.pem"]
-        files = ('account_key.json', 'key.pem', 'full.pem')
+               "-f", "account_key.json", "-f", "account_reg.json",
+               "-f", "key.pem", "-f", "full.pem"]
+        files = ('account_key.json', 'account_reg.json', 'key.pem', 'full.pem')
         with self._new_swd():
             webroot_fail_arg = ["-d", "le.wtf:%s" % os.getcwd()]
             self.assertEqual(EXIT_ERROR, self._run(cmd + webroot_fail_arg))
@@ -1719,7 +1691,8 @@ class IntegrationTests(unittest.TestCase):
 
             self.assertEqual(EXIT_REVOKE_OK, self._run([
                 "simp_le", "-v", "--server", (self.SERVER), "--revoke",
-                "-f", "account_key.json", "-f", "full.pem"]))
+                "-f", "account_key.json", "-f", "account_reg.json",
+                "-f", "full.pem"]))
             # Revocation shouldn't touch any files
             self.assertEqual(initial_stats, self.get_stats(*files))
 
