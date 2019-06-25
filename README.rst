@@ -118,10 +118,10 @@ to do otherwise (e.g. security & serious bug fixes).
   Support for ACME v1 endpoints has been dropped entirely.
 * Persist account_reg.json in addition to account_key.json, and
   recovers missing registration info if needed.
-* Upgrade acme to 0.34.x
 * Remove the `-f external.sh` feature
 * Add official support for Python 3.7
 * Drop official support for Python 2 and 3.4
+* Upgrade acme to 0.35.x
 
 0.14.0
 ++++++
