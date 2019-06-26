@@ -111,16 +111,25 @@ represents the *next* (i.e. not yet released) version.
 Releases occur approximately every two months, unless there is a pressing need
 to do otherwise (e.g. security & serious bug fixes).
 
-0.15.0 (Upcoming)
+0.15.0
 ++++++
+
+**Please read these carefully, as this release includes a couple changes
+that may require changes when upgrading**
 
 * Switch from ACME v1 to ACME v2 endpoints support.
   Support for ACME v1 endpoints has been dropped entirely.
+  If you were previously passing the server endpoint via the
+  ``--server`` flag, you will need to update it to point to
+  a v2 endpoint (or simply remove it, to use Let's Encrypt's
+  default v2 endpoint).
 * Persist account_reg.json in addition to account_key.json, and
-  recovers missing registration info if needed.
-* Remove the `-f external.sh` feature
-* Add official support for Python 3.7
-* Drop official support for Python 2 and 3.4
+  recover missing registration info if needed. *You will now
+  need to pass a ``-f account_reg.json`` option to simp_le*
+* Remove the ``-f external.sh`` feature.
+* Drop official support for Python 2 and 3.4.
+* Add official support for Python 3.7 (in theory it should have
+  worked before, but we are now testing with it).
 * Upgrade acme to 0.35.x
 
 0.14.0
