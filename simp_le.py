@@ -1327,7 +1327,11 @@ def registered_client(args, existing_account_key, existing_account_reg):
     """Return an ACME v2 client from account key and registration.
     Register a new account or recover missing registration if necessary."""
     key = check_or_generate_account_key(args, existing_account_key)
-    net = acme_client.ClientNetwork(key, user_agent=args.user_agent)
+    net = acme_client.ClientNetwork(
+        key=key,
+        account=existing_account_reg,
+        user_agent=args.user_agent
+    )
     directory = messages.Directory.from_json(net.get(args.server).json())
     client = acme_client.ClientV2(directory, net=net)
 
@@ -1349,9 +1353,7 @@ def registered_client(args, existing_account_key, existing_account_reg):
             logger.debug('Client already registered: %s', error.location)
             existing_reg = messages.RegistrationResource(uri=error.location)
             existing_reg = client.query_registration(existing_reg)
-            client.update_registration(existing_reg)
-    else:
-        client.update_registration(existing_account_reg)
+            client.net.account = existing_reg
 
     return client
 
