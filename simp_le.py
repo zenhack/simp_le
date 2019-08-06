@@ -994,6 +994,10 @@ def create_parser():
         '--server', metavar='URI', default=LE_PRODUCTION_URI,
         help='Directory URI for the CA ACME API endpoint.',
     )
+    http.add_argument(
+        '--ca_bundle', metavar='PATH', default=None,
+        help='Path to alternate CA bundle.',
+    )
 
     return parser
 
@@ -1199,9 +1203,11 @@ def test(args):
 
 def integration_test(args):
     """Run integration tests (--integration-test)."""
-    return test_suite(
-        args, unittest.defaultTestLoader.loadTestsFromTestCase(
-            IntegrationTests))
+    suite = unittest.TestSuite()
+    test_names = unittest.TestLoader().getTestCaseNames(IntegrationTests)
+    for test_name in test_names:
+        suite.addTest(IntegrationTests(test_name, args.ca_bundle))
+    return test_suite(args, suite)
 
 
 def check_plugins_persist_all(ioplugins):
@@ -1515,6 +1521,12 @@ def main_with_exceptions(cli_args):
     setup_logging(args.verbose)
     logger.debug('%r parsed as %r', cli_args, args)
 
+    if args.ca_bundle is not None:
+        os.environ['REQUESTS_CA_BUNDLE'] = args.ca_bundle
+        logger.info(
+            'REQUESTS_CA_BUNDLE environment variable set to %s',
+            os.environ['REQUESTS_CA_BUNDLE'])
+
     if args.revoke:  # --revoke
         return revoke(args)
 
@@ -1634,6 +1646,9 @@ class IntegrationTests(unittest.TestCase):
     - Boulder verifying http-01 on port 5002
     """
     # this is a test suite | pylint: disable=missing-docstring
+    def __init__(self, testname, ca_bundle):
+        super(IntegrationTests, self).__init__(testname)
+        self.ca_bundle = ca_bundle
 
     SERVER = 'http://10.77.77.1:4001/directory'
 
@@ -1673,6 +1688,8 @@ class IntegrationTests(unittest.TestCase):
         cmd = ["simp_le", "-v", "--server", (self.SERVER),
                "-f", "account_key.json", "-f", "account_reg.json",
                "-f", "key.pem", "-f", "full.pem"]
+        if self.ca_bundle is not None:
+            cmd = cmd + ["--ca_bundle", (self.ca_bundle)]
         files = ('account_key.json', 'account_reg.json', 'key.pem', 'full.pem')
         with self._new_swd():
             webroot_fail_arg = ["-d", "le.wtf:%s" % os.getcwd()]
@@ -1691,10 +1708,12 @@ class IntegrationTests(unittest.TestCase):
             # NB get_stats() would fail if file didn't exist
             self.assertEqual(initial_stats, self.get_stats(*files))
 
-            self.assertEqual(EXIT_REVOKE_OK, self._run([
-                "simp_le", "-v", "--server", (self.SERVER), "--revoke",
-                "-f", "account_key.json", "-f", "account_reg.json",
-                "-f", "full.pem"]))
+            cmd_revoke = ["simp_le", "-v", "--server", (self.SERVER),
+                          "--revoke", "-f", "account_key.json",
+                          "-f", "account_reg.json", "-f", "full.pem"]
+            if self.ca_bundle is not None:
+                cmd_revoke = cmd_revoke + ["--ca_bundle", (self.ca_bundle)]
+            self.assertEqual(EXIT_REVOKE_OK, self._run(cmd_revoke))
             # Revocation shouldn't touch any files
             self.assertEqual(initial_stats, self.get_stats(*files))
 
