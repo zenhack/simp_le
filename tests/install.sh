@@ -6,7 +6,6 @@
 # from some of the commands in this file (#39).
 set -xe
 
-SERVER='http://10.77.77.1:4001/directory'
 PORT=5002
 
 setup_docker_compose () {
@@ -47,7 +46,7 @@ setup_webroot() {
 
 wait_for_boulder() {
   i=0
-  while ! curl ${SERVER?} >/dev/null 2>&1; do
+  while ! curl http://10.77.77.1:4001/directory >/dev/null 2>&1; do
     if [ $(($i * 5)) -gt $((5 * 60)) ]; then
       printf 'Boulder has not started for 5 minutes, timing out.\n'
       exit 1

@@ -1206,7 +1206,7 @@ def integration_test(args):
     suite = unittest.TestSuite()
     test_names = unittest.TestLoader().getTestCaseNames(IntegrationTests)
     for test_name in test_names:
-        suite.addTest(IntegrationTests(test_name, args.ca_bundle))
+        suite.addTest(IntegrationTests(test_name, args.ca_bundle, args.server))
     return test_suite(args, suite)
 
 
@@ -1642,15 +1642,15 @@ class IntegrationTests(unittest.TestCase):
 
     Prerequisites:
     - /etc/hosts:127.0.0.1 le.wtf
-    - Boulder running on 10.77.77.1:4001 (with Docker)
+    - Boulder URL passed to simp_le with --server
     - Boulder verifying http-01 on port 5002
     """
     # this is a test suite | pylint: disable=missing-docstring
-    def __init__(self, testname, ca_bundle):
+
+    def __init__(self, testname, ca_bundle, server):
         super(IntegrationTests, self).__init__(testname)
         self.ca_bundle = ca_bundle
-
-    SERVER = 'http://10.77.77.1:4001/directory'
+        self.server = server
 
     @classmethod
     def _run(cls, cmd):
@@ -1685,7 +1685,7 @@ class IntegrationTests(unittest.TestCase):
 
     def test_it(self):
         webroot = os.path.join(os.getcwd(), 'public_html')
-        cmd = ["simp_le", "-v", "--server", (self.SERVER),
+        cmd = ["simp_le", "-v", "--server", (self.server),
                "-f", "account_key.json", "-f", "account_reg.json",
                "-f", "key.pem", "-f", "full.pem"]
         if self.ca_bundle is not None:
@@ -1708,7 +1708,7 @@ class IntegrationTests(unittest.TestCase):
             # NB get_stats() would fail if file didn't exist
             self.assertEqual(initial_stats, self.get_stats(*files))
 
-            cmd_revoke = ["simp_le", "-v", "--server", (self.SERVER),
+            cmd_revoke = ["simp_le", "-v", "--server", (self.server),
                           "--revoke", "-f", "account_key.json",
                           "-f", "account_reg.json", "-f", "full.pem"]
             if self.ca_bundle is not None:

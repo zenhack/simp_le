@@ -13,12 +13,15 @@ case $1 in
     ;;
   simp_le_suite)
     simp_le -v --test
-    simp_le -v --integration_test
+    simp_le -v --integration_test --server http://10.77.77.1:4001/directory
     ;;
   docker_suite)
     official-images/test/run.sh "$IMAGE"
     docker run --rm "$IMAGE" -v --test
-    docker run --rm --net="host" -v "${TRAVIS_BUILD_DIR}/public_html:/simp_le/certs/public_html" "$IMAGE" -v --integration_test
+    docker run --rm \
+      --net="host" \
+      -v "${TRAVIS_BUILD_DIR}/public_html:/simp_le/certs/public_html" \
+      "$IMAGE" -v --integration_test --server http://10.77.77.1:4001/directory
     ;;
 esac
 
