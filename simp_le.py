@@ -1641,9 +1641,10 @@ class IntegrationTests(unittest.TestCase):
     """Integrations tests with Boulder.
 
     Prerequisites:
-    - /etc/hosts:127.0.0.1 le.wtf
-    - Boulder URL passed to simp_le with --server
-    - Boulder verifying http-01 on port 5002
+    - /etc/hosts:127.0.0.1 le.wtf le2.wtf pebble
+    - Boulder or Pebble URL passed to simp_le with --server
+    - Boulder or Pebble verifying http-01 on port 5002
+    - Path to Boulder or Pebble HTTPS CA passed with --ca_bundle if needed
     """
     # this is a test suite | pylint: disable=missing-docstring
 
