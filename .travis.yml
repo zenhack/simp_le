@@ -8,24 +8,33 @@ python:
   - "3.6"
   - "3.7"
 env:
-  - TEST_SUITE=simp_le_suite
+  - TEST_SUITE=simp_le_suite ACME_CA=boulder
 matrix:
   fast_finish: true
   include:
+  - python: "3.5"
+    env: TEST_SUITE=simp_le_suite ACME_CA=pebble
+  - python: "3.6"
+    env: TEST_SUITE=simp_le_suite ACME_CA=pebble
+  - python: "3.7"
+    env: TEST_SUITE=simp_le_suite ACME_CA=pebble
   - python: "3.7"
     env: TEST_SUITE=lint_suite
   - python: "3.7"
-    env: ARCH=amd64 TEST_SUITE=docker_suite FROM=alpine:3.7 IMAGE=zenhack/simp_le:$ARCH
+    env: TEST_SUITE=docker_suite ACME_CA=boulder ARCH=amd64 FROM=alpine:3.7 IMAGE=zenhack/simp_le:$ARCH
   - python: "3.7"
-    env: ARCH=arm64 TEST_SUITE=docker_suite FROM=multiarch/alpine:arm64-v3.7 IMAGE=zenhack/simp_le:$ARCH
+    env: TEST_SUITE=docker_suite ACME_CA=pebble ARCH=amd64 FROM=alpine:3.7 IMAGE=zenhack/simp_le:$ARCH
   - python: "3.7"
-    env: ARCH=arm TEST_SUITE=docker_suite FROM=multiarch/alpine:armhf-v3.7 IMAGE=zenhack/simp_le:$ARCH
+    env: TEST_SUITE=docker_suite ACME_CA=pebble ARCH=arm64 FROM=multiarch/alpine:arm64-v3.7 IMAGE=zenhack/simp_le:$ARCH
+  - python: "3.7"
+    env: TEST_SUITE=docker_suite ACME_CA=pebble ARCH=arm FROM=multiarch/alpine:armhf-v3.7 IMAGE=zenhack/simp_le:$ARCH
   allow_failures:
-  - env: ARCH=arm64 TEST_SUITE=docker_suite FROM=multiarch/alpine:arm64-v3.7 IMAGE=zenhack/simp_le:$ARCH
-  - env: ARCH=arm TEST_SUITE=docker_suite FROM=multiarch/alpine:armhf-v3.7 IMAGE=zenhack/simp_le:$ARCH
+  - env: TEST_SUITE=docker_suite ACME_CA=pebble ARCH=arm64 FROM=multiarch/alpine:arm64-v3.7 IMAGE=zenhack/simp_le:$ARCH
+  - env: TEST_SUITE=docker_suite ACME_CA=pebble ARCH=arm FROM=multiarch/alpine:armhf-v3.7 IMAGE=zenhack/simp_le:$ARCH
 
 addons:
   hosts:
+    - pebble
     - le.wtf
     - le2.wtf
 

@@ -6,7 +6,6 @@
 # from some of the commands in this file (#39).
 set -xe
 
-SERVER='http://10.77.77.1:4001/directory'
 PORT=5002
 
 setup_docker_compose () {
@@ -34,27 +33,64 @@ setup_boulder() {
   cd -
 }
 
-setup_webroot() {
-  mkdir public_html
-  cd public_html
-  if python -V 2>&1 | grep -q "Python 3."; then
-    python -m http.server ${PORT?} &
-  else
-    python -m SimpleHTTPServer ${PORT?} &
-  fi
-  cd -
+setup_pebble() {
+  docker network create --driver=bridge --subnet=10.30.50.0/24 acmenet
+  curl https://raw.githubusercontent.com/letsencrypt/pebble/master/test/certs/pebble.minica.pem > ${TRAVIS_BUILD_DIR}/pebble.minica.pem
+  cat ${TRAVIS_BUILD_DIR}/pebble.minica.pem
+
+  docker run \
+    --name pebble \
+    --network acmenet \
+    --ip="10.30.50.2" \
+    --publish 14000:14000 \
+    letsencrypt/pebble:v2.1.0 \
+    pebble -config /test/config/pebble-config.json -dnsserver 10.30.50.3:8053 &
+
+  docker run \
+    --name challtestserv \
+    --network acmenet \
+    --ip="10.30.50.3" \
+    --publish 8055:8055 \
+    letsencrypt/pebble-challtestsrv:v2.1.0 \
+    pebble-challtestsrv -defaultIPv6 "" -defaultIPv4 10.30.50.1 &
 }
 
-wait_for_boulder() {
+setup_acme_server() {
+  case $ACME_CA in
+    boulder)
+      setup_boulder
+      ;;
+    pebble)
+      setup_pebble
+      ;;
+  esac
+}
+
+wait_for_acme_server() {
   i=0
-  while ! curl ${SERVER?} >/dev/null 2>&1; do
+  case $ACME_CA in
+    boulder)
+      url='http://10.77.77.1:4001/directory'
+      ;;
+    pebble)
+      url='https://pebble:14000/dir'
+      ;;
+  esac
+  while ! curl -k $url >/dev/null 2>&1; do
     if [ $(($i * 5)) -gt $((5 * 60)) ]; then
-      printf 'Boulder has not started for 5 minutes, timing out.\n'
+      printf "$ACME_CA has not started for 5 minutes, timing out.\n"
       exit 1
     fi
     i=$((i + 1))
     sleep 5
   done
+}
+
+setup_webroot() {
+  mkdir public_html
+  cd public_html
+  python -m http.server ${PORT?} &
+  cd -
 }
 
 case $1 in
@@ -64,18 +100,18 @@ case $1 in
   simp_le_suite)
     pip install -e .
     setup_docker_compose
-    setup_boulder
+    setup_acme_server
     setup_webroot
-    wait_for_boulder
+    wait_for_acme_server
     ;;
   docker_suite)
     [ $ARCH != "amd64" ] && docker run --rm --privileged multiarch/qemu-user-static:register --reset
     docker build --build-arg BUILD_FROM="${FROM}" --tag "$IMAGE" --file docker/Dockerfile .
     git clone https://github.com/docker-library/official-images.git official-images
     setup_docker_compose
-    setup_boulder
+    setup_acme_server
     setup_webroot
-    wait_for_boulder
+    wait_for_acme_server
     ;;
 esac
 
