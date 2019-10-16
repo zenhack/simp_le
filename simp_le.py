@@ -1698,15 +1698,25 @@ class IntegrationTests(unittest.TestCase):
             # Failed authorization should generate the account key anyway
             unchangeable_stats = self.get_stats(files[0])
 
+            # Let's remove the account registration
+            os.remove(files[1])
+            self.assertEqual(EXIT_ERROR, self._run(cmd + webroot_fail_arg))
+            # Account key should be kept from previous failed attempt
+            # The account registration should be recovered
+            # NB get_stats() would fail if registration file didn't exist
+            self.assertEqual(unchangeable_stats, self.get_stats(files[0]))
+            unchangeable_stats = self.get_stats(files[0], files[1])
+
             webroot_1_arg = ["-d", "le.wtf:%s" % webroot]
             self.assertEqual(EXIT_RENEWAL, self._run(cmd + webroot_1_arg))
-            # Account key should be kept from previous failed attempt
-            self.assertEqual(unchangeable_stats, self.get_stats(files[0]))
+            # Account key / reg should be kept from previous failed attempt
+            self.assertEqual(unchangeable_stats,
+                             self.get_stats(files[0], files[1]))
             initial_stats = self.get_stats(*files)
 
             self.assertEqual(EXIT_NO_RENEWAL, self._run(cmd + webroot_1_arg))
             # No renewal => no files should be touched
-            # NB get_stats() would fail if file didn't exist
+            # NB get_stats() would fail if a file didn't exist
             self.assertEqual(initial_stats, self.get_stats(*files))
 
             cmd_revoke = ["simp_le", "-v", "--server", (self.server),
@@ -1722,8 +1732,9 @@ class IntegrationTests(unittest.TestCase):
             # Changing SANs should trigger "renewal"
             self.assertEqual(EXIT_RENEWAL,
                              self._run(cmd + webroot_1_arg + webroot_2_arg))
-            # but it shouldn't unnecessarily overwrite the account key (#67)
-            self.assertEqual(unchangeable_stats, self.get_stats(files[0]))
+            # But shouldn't unnecessarily overwrite the account key /reg (#67)
+            self.assertEqual(unchangeable_stats,
+                             self.get_stats(files[0], files[1]))
 
 
 if __name__ == '__main__':

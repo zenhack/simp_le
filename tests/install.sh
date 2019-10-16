@@ -22,7 +22,7 @@ setup_boulder() {
   git clone https://github.com/letsencrypt/boulder \
     $GOPATH/src/github.com/letsencrypt/boulder
   cd $GOPATH/src/github.com/letsencrypt/boulder
-  git checkout release-2019-06-17
+  git checkout release-2019-10-13
   docker-compose pull
   docker-compose build
   docker-compose run \
