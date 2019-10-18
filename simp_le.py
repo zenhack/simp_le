@@ -1435,6 +1435,26 @@ def finalize_order(client, order):
     return finalized_order
 
 
+def poll_and_answer(client, authorizations, roots):
+    """Poll authorization status and answer challenge if required"""
+    # pylint: disable=no-member
+    for name, auth in six.iteritems(authorizations):
+        for _ in range(5):
+            auth, _ = client.poll(auth)
+            if auth.body.status == messages.STATUS_VALID:
+                break
+            if auth.body.status == messages.STATUS_PENDING:
+                challb = supported_challb(auth)
+                response, validation = challb.response_and_validation(
+                    client.net.key)
+                save_validation(roots[name], challb, validation)
+                client.answer_challenge(challb, response)
+                break
+            time.sleep(1)
+        else:
+            raise Error('Authorization status timed out.')
+
+
 def persist_new_data(args, existing_data):
     """Issue and persist new key/cert/chain."""
     roots = compute_roots(args.vhosts, args.default_root)
@@ -1468,14 +1488,8 @@ def persist_new_data(args, existing_data):
         raise Error('CA did not offer http-01-only challenge combo. '
                     'This client is unable to solve any other challenges.')
 
-    for name, auth in six.iteritems(authorizations):
-        challb = supported_challb(auth)
-        response, validation = challb.response_and_validation(client.net.key)
-        save_validation(roots[name], challb, validation)
-
-        client.answer_challenge(challb, response)
-
     try:
+        poll_and_answer(client, authorizations, roots)
         order = finalize_order(client, order)
         pems = list(split_pems(order.fullchain_pem))
 
