@@ -890,7 +890,8 @@ class PortNumWarningTest(UnitTestCase):
 def positive_int(value):
     ivalue = int(value)
     if ivalue < 0:
-        raise argparse.ArgumentTypeError("{} is not a positive int value".formate(ivalue))
+        raise argparse.ArgumentTypeError("{} is not a positive int value"
+                .format(ivalue))
     return ivalue
 
 
@@ -909,7 +910,7 @@ def create_parser():
         help='Increase verbosity of the logging.',
     )
     general.add_argument(
-        '-l', '--loop', type=positive_int, default=0, 
+        '-l', '--loop', type=positive_int, default=0,
         help='Only exit on error (exit code 2). '
         'Under normal operation (exit code 0 or 1) run continuously '
         'and retry a refresh of the certificates every <n> days',
@@ -1552,7 +1553,7 @@ def main_with_exceptions(cli_args):
         if not match:
             raise Error("The email address you provided ({0}) does not appear"
                         "to be valid.".format(args.email))
-    
+ 
     if args.loop > 0:
         while True:
             exit_code = try_renewal(args)
@@ -1564,7 +1565,6 @@ def main_with_exceptions(cli_args):
             time.sleep(args.loop*60*60*24)
     else:
         return try_renewal(args)
-
 
 
 def try_renewal(args):
