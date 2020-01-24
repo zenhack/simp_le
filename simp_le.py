@@ -1525,6 +1525,8 @@ def exec_special_cases(parser, args):
     if args.version:  # --version
         sys.stdout.write('%s %s\n' % (os.path.basename(sys.argv[0]), VERSION))
         return EXIT_HELP_VERSION_OK
+    #Should never get to this line but can't log error as logger is not set up
+    return EXIT_ERROR
 
 
 def main_with_exceptions(cli_args):
@@ -1537,7 +1539,7 @@ def main_with_exceptions(cli_args):
         return EXIT_ERROR
 
     if args.test or args.integration_test or args.help or args.version:
-        exec_special_cases(parser, args)
+        return exec_special_cases(parser, args)
 
     setup_logging(args.verbose)
     logger.debug('%r parsed as %r', cli_args, args)
