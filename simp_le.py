@@ -888,6 +888,7 @@ class PortNumWarningTest(UnitTestCase):
 
 
 def positive_int(value):
+    """Check to only allow positive integers as argument"""
     ivalue = int(value)
     if ivalue < 0:
         raise argparse.ArgumentTypeError("{} is not a positive int value"
@@ -1512,15 +1513,8 @@ def setup_logging(verbose):
     root_logger.addHandler(handler)
 
 
-def main_with_exceptions(cli_args):
-    # pylint: disable=too-many-return-statements
-    """Run the script, throw exceptions on error."""
-    parser = create_parser()
-    try:
-        args = parser.parse_args(cli_args)
-    except SystemExit:
-        return EXIT_ERROR
-
+def exec_special_cases(args):
+    """Takes care of special exec cases."""
     if args.test:  # --test
         return test(args)
     if args.integration_test:  # --integration_test
@@ -1531,6 +1525,19 @@ def main_with_exceptions(cli_args):
     if args.version:  # --version
         sys.stdout.write('%s %s\n' % (os.path.basename(sys.argv[0]), VERSION))
         return EXIT_HELP_VERSION_OK
+
+
+def main_with_exceptions(cli_args):
+    # pylint: disable=too-many-return-statements
+    """Run the script, throw exceptions on error."""
+    parser = create_parser()
+    try:
+        args = parser.parse_args(cli_args)
+    except SystemExit:
+        return EXIT_ERROR
+
+    if args.test or args.integration_test or args.help or args.version:
+        exec_special_cases(args)
 
     setup_logging(args.verbose)
     logger.debug('%r parsed as %r', cli_args, args)
@@ -1557,17 +1564,18 @@ def main_with_exceptions(cli_args):
     if args.loop > 0:
         while True:
             exit_code = try_renewal(args)
-            logger.info('Renewal finished with exit code {} at {}'.format(
-                exit_code, datetime.datetime.now()))
+            logger.info('Renewal finished with exit code %d at %s',
+                exit_code, datetime.datetime.now())
             if exit_code == EXIT_ERROR:
                 return exit_code
-            logger.info('Sleeping for {} days'.format(args.loop))
+            logger.info('Sleeping for %d days', args.loop)
             time.sleep(args.loop*60*60*24)
     else:
         return try_renewal(args)
 
 
 def try_renewal(args):
+    """Takes care of core certificate creation/renewal."""
     existing_data = load_existing_data(args.ioplugins)
     if valid_existing_cert(existing_data.cert, args.vhosts, args.valid_min):
         logger.info('Certificates already exist and renewal is not '
