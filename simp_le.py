@@ -1513,7 +1513,7 @@ def setup_logging(verbose):
     root_logger.addHandler(handler)
 
 
-def exec_special_cases(args):
+def exec_special_cases(parser, args):
     """Takes care of special exec cases."""
     if args.test:  # --test
         return test(args)
@@ -1537,7 +1537,7 @@ def main_with_exceptions(cli_args):
         return EXIT_ERROR
 
     if args.test or args.integration_test or args.help or args.version:
-        exec_special_cases(args)
+        exec_special_cases(parser, args)
 
     setup_logging(args.verbose)
     logger.debug('%r parsed as %r', cli_args, args)
@@ -1565,7 +1565,7 @@ def main_with_exceptions(cli_args):
         while True:
             exit_code = try_renewal(args)
             logger.info('Renewal finished with exit code %d at %s',
-                exit_code, datetime.datetime.now())
+                        exit_code, datetime.datetime.now())
             if exit_code == EXIT_ERROR:
                 return exit_code
             logger.info('Sleeping for %d days', args.loop)
