@@ -891,7 +891,7 @@ def positive_int(value):
     ivalue = int(value)
     if ivalue < 0:
         raise argparse.ArgumentTypeError("{} is not a positive int value"
-                .format(ivalue))
+                                         .format(ivalue))
     return ivalue
 
 
@@ -1553,7 +1553,7 @@ def main_with_exceptions(cli_args):
         if not match:
             raise Error("The email address you provided ({0}) does not appear"
                         "to be valid.".format(args.email))
- 
+
     if args.loop > 0:
         while True:
             exit_code = try_renewal(args)
