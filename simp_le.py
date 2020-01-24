@@ -887,6 +887,13 @@ class PortNumWarningTest(UnitTestCase):
         self._check_warn(False, '66000')
 
 
+def positive_int(value):
+    ivalue = int(value)
+    if ivalue < 0:
+        raise argparse.ArgumentTypeError("{} is not a positive int value".formate(ivalue))
+    return ivalue
+
+
 def create_parser():
     """Create argument parser."""
     parser = argparse.ArgumentParser(
@@ -901,6 +908,12 @@ def create_parser():
         '-v', '--verbose', action='store_true', default=False,
         help='Increase verbosity of the logging.',
     )
+    general.add_argument(
+        '-l', '--loop', type=positive_int, default=0, 
+        help='Only exit on error (exit code 2). '
+        'Under normal operation (exit code 0 or 1) run continuously '
+        'and retry a refresh of the certificates every <n> days',
+        metavar='days')
 
     modes = parser.add_argument_group()
     modes.add_argument(
@@ -1539,7 +1552,22 @@ def main_with_exceptions(cli_args):
         if not match:
             raise Error("The email address you provided ({0}) does not appear"
                         "to be valid.".format(args.email))
+    
+    if args.loop > 0:
+        while True:
+            exit_code = try_renewal(args)
+            logger.info('Renewal finished with exit code {} at {}'.format(
+                exit_code, datetime.datetime.now()))
+            if exit_code == EXIT_ERROR:
+                return exit_code
+            logger.info('Sleeping for {} days'.format(args.loop))
+            time.sleep(args.loop*60*60*24)
+    else:
+        return try_renewal(args)
 
+
+
+def try_renewal(args):
     existing_data = load_existing_data(args.ioplugins)
     if valid_existing_cert(existing_data.cert, args.vhosts, args.valid_min):
         logger.info('Certificates already exist and renewal is not '
