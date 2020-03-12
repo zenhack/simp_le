@@ -111,6 +111,11 @@ represents the *next* (i.e. not yet released) version.
 Releases occur approximately every two months, unless there is a pressing need
 to do otherwise (e.g. security & serious bug fixes).
 
+0.18.0 (Upcoming)
++++++++++++++++++
+
+* Upgrade acme to 1.3 or later.
+
 0.17.0
 ++++++
 
