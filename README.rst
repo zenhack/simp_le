@@ -115,6 +115,7 @@ to do otherwise (e.g. security & serious bug fixes).
 +++++++++++++++++
 
 * Upgrade acme to 1.3 or later.
+* Fix a bug where simp_le failed to obtain a cert from BuyPass ACME.
 
 0.17.0
 ++++++
