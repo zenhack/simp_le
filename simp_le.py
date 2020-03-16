@@ -913,15 +913,14 @@ class SplitPemsTest(UnitTestCase):
 
     def _check_line_break(self, sep):
         """Helper for making sure various line separators work."""
-        x = sep.join([
+        data = sep.join([
             b'',
             b'-----BEGIN FOO BAR-----',
             b'foo',
             b'bar',
             b'-----END FOO BAR-----',
         ])
-        print('%r' % x)
-        self.assertEqual(len(list(split_pems(x * 3))), 3)
+        self.assertEqual(len(list(split_pems(data * 3))), 3)
 
 
 def create_parser():
