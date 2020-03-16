@@ -101,6 +101,11 @@ def split_pems(buf):
     """
     if isinstance(buf, str):
         buf = buf.encode()
+    # The regex we use for splitting these does not work correctly if line
+    # endings are \r\n, instead of just \n. For now we do some preprocessing,
+    # but really we should re-write this to use something not as unwieldly
+    # as regexes; backreferences are a sign you should have given up already.
+    buf = buf.replace(b'\r\n', b'\n')
     for match in _PEM_RE.finditer(buf):
         yield match.group(0)
 
@@ -885,6 +890,38 @@ class PortNumWarningTest(UnitTestCase):
     def test_no_warn_bigport(self):
         """A number too big to be a port doesn't trigger the warning."""
         self._check_warn(False, '66000')
+
+
+class SplitPemsTest(UnitTestCase):
+    """Tests for split_pems().
+
+    See also the doc tests for that function.
+    """
+
+    def check_lf(self):
+        """Should work with LF line endings."""
+        self._check_line_break(b'\n')
+
+    def test_crlf(self):
+        """Should work with CRLF line endings"""
+        self._check_line_break(b'\r\n')
+
+    def check_duplicate(self):
+        """Should work with duplicate line endings."""
+        self._check_line_break(b'\n\n')
+        self._check_line_break(b'\r\n\r\n')
+
+    def _check_line_break(self, sep):
+        """Helper for making sure various line separators work."""
+        x = sep.join([
+            b'',
+            b'-----BEGIN FOO BAR-----',
+            b'foo',
+            b'bar',
+            b'-----END FOO BAR-----',
+        ])
+        print('%r' % x)
+        self.assertEqual(len(list(split_pems(x * 3))), 3)
 
 
 def create_parser():
