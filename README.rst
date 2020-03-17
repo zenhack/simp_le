@@ -111,8 +111,8 @@ represents the *next* (i.e. not yet released) version.
 Releases occur approximately every two months, unless there is a pressing need
 to do otherwise (e.g. security & serious bug fixes).
 
-0.18.0 (Upcoming)
-+++++++++++++++++
+0.18.0
+++++++
 
 * Upgrade acme to 1.3 or later.
 * Fix a bug where simp_le failed to obtain a cert from BuyPass ACME.
