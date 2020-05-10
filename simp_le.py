@@ -1437,7 +1437,6 @@ def finalize_order(client, order):
 
 def poll_and_answer(client, authorizations, roots):
     """Poll authorization status and answer challenge if required"""
-    # pylint: disable=no-member
     for name, auth in six.iteritems(authorizations):
         for _ in range(5):
             auth, _ = client.poll(auth)
