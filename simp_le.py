@@ -997,6 +997,10 @@ def create_parser():
         '--reuse_key', action='store_true', default=False,
         help='Reuse private key if it was previously persisted.',
     )
+    io_group.add_argument(
+        '--use_alt_chain', type=int, default=0, metavar='CHAIN_NO',
+        help='If non-zero, then use alternative certificate chain number.',
+    )
 
     reg = parser.add_argument_group(
         'Registration', description='This client will automatically '
@@ -1400,10 +1404,12 @@ def registered_client(args, existing_account_key, existing_account_reg):
     return client
 
 
-def finalize_order(client, order):
+def finalize_order(client, order, fetch_alternative_chains):
     """Finalize the specified order and return the order resource."""
     try:
-        finalized_order = client.poll_and_finalize(order)
+        deadline = datetime.datetime.now() + datetime.timedelta(seconds=90)
+        orderr = client.poll_authorizations(order, deadline)
+        finalized_order = client.finalize_order(orderr, deadline, fetch_alternative_chains)
     except acme_errors.PollError as error:
         if error.timeout:
             logger.error(
@@ -1489,8 +1495,13 @@ def persist_new_data(args, existing_data):
 
     try:
         poll_and_answer(client, authorizations, roots)
-        order = finalize_order(client, order)
-        pems = list(split_pems(order.fullchain_pem))
+        order = finalize_order(
+            client, order, fetch_alternative_chains=(args.use_alt_chain != 0)
+        )
+        fullchain_pems = [order.fullchain_pem]
+        if order.alternative_fullchains_pem:
+            fullchain_pems.extend(order.alternative_fullchains_pem)
+        pems = list(split_pems(fullchain_pems[args.use_alt_chain]))
 
         persist_data(args, existing_data, new_data=IOPlugin.Data(
             account_key=client.net.key,
