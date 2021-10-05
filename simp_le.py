@@ -999,7 +999,10 @@ def create_parser():
     )
     io_group.add_argument(
         '--use_alt_chain', type=int, default=0, metavar='CHAIN_NO',
-        help='If non-zero, then use alternative certificate chain number.',
+        help='If non-zero, then use nth alternative certificate chain. '
+        'For example using "1" with Let\'s Encrypt may be required '
+        'to work-around a bug in clients with OpenSSL-1.0.2: '
+        'https://www.openssl.org/blog/blog/2021/09/13/LetsEncryptRootCertExpire/'
     )
 
     reg = parser.add_argument_group(
