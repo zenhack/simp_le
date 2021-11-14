@@ -112,6 +112,11 @@ Releases occur approximately every two months, unless there is a pressing need
 to do otherwise (e.g. security & serious bug fixes), or no changes have been
 made since the last release.
 
+0.19.0
+++++++
+
+* Add ``--use_alt_chain`` flag.
+
 0.18.1
 ++++++
 
