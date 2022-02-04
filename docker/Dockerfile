@@ -23,6 +23,8 @@ RUN apk update \
         tzdata \
     && cp /usr/share/zoneinfo/UTC /etc/localtime \
     && echo "UTC" > /etc/timezone \
+    && pip3 install --upgrade pip \
+    && pip3 install six \
     && pip3 install --no-cache-dir /simp_le/src \
     && rm -rf /simp_le/src \
     && apk del --purge .build-deps \
