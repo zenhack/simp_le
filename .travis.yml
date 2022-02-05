@@ -42,10 +42,3 @@ install:
   - ./tests/install.sh $TEST_SUITE
 script:
   - ./tests/test-suite.sh $TEST_SUITE
-
-notifications:
-  irc:
-    channels:
-      - "irc.freenode.org#simp_le"
-    use_notice: true
-    skip_join: true
