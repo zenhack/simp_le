@@ -4,7 +4,7 @@ set -e
 
 python3 -m virtualenv -p python3 venv
 export PATH="$PWD/venv/bin:$PATH"  # #49, activate script requires bash
-for pkg in pip setuptools wheel
+for pkg in pip setuptools wheel six
 do
   pip install -U "${pkg?}"
 done
