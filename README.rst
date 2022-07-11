@@ -112,6 +112,12 @@ Releases occur approximately every two months, unless there is a pressing need
 to do otherwise (e.g. security & serious bug fixes), or no changes have been
 made since the last release.
 
+0.19.2
+++++++
+
+* Fix a minor standards conformance issue, see
+  https://github.com/zenhack/simp_le/pull/155
+
 0.19.1
 ++++++
 
