@@ -15,9 +15,23 @@ Simple `Let’s Encrypt`_ client.
 
 For more info see ``simp_le --help``.
 
-N.B. this was originally a fork of https://github.com/kuba/simp\_le,
-which is unmaintained and has some breakage due to bitrot. Thanks to
-@kuba for the original implementation.
+NOTE: this repository is mostly unmaintained; I will review and merge PRs,
+but I(@zenhack) am no longer using this tool myself and am thus not motivated
+to otherwise actively develop it.
+
+Project History
+---------------
+
+- @kuba wrote the original https://github.com/kuba/simp\_le, at a time when
+  ACME & let's Encrypt were very new; certbot still didn't support nginx,
+  and there was an un-filled niche for a trivial command line ACME client.
+- At some point @kuba stopped maintaining simp_le. A few months later bitrot
+  set in, and PRs fixing the problems went unmerged.
+- When the breakage began to affect https://zenhack.net, I(@zenhack) forked
+  the project, merged the PRs, fixed CI and began maintaining the tool. This
+  continued for several years.
+- I(@zenhack) switched over to using NixOS's acme configuration options, and
+  transitioned the project to its current semi-unmaintained status.
 
 Manifest
 --------
