@@ -1052,16 +1052,9 @@ def supported_challb(authorization):
     Returns:
       `acme.messages.ChallengeBody` with `http-01` challenge or `None`.
     """
-    if authorization.body.combinations is None:
-        for challenge in authorization.body.challenges:
-            if isinstance(challenge.chall, challenges.HTTP01):
-                return challenge
-    else:
-        for combo in authorization.body.combinations:
-            first_challb = authorization.body.challenges[combo[0]]
-            if len(combo) == 1 and isinstance(
-                    first_challb.chall, challenges.HTTP01):
-                return first_challb
+    for challenge in authorization.body.challenges:
+        if isinstance(challenge.chall, challenges.HTTP01):
+            return challenge
     return None
 
 
